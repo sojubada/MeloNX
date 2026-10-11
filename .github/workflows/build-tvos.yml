@@ -110,23 +110,39 @@ jobs:
         if: steps.deps-cache.outputs.cache-hit != 'true'
         run: ./tvos/scripts/build-deps.sh sdl3
 
-      - name: FFmpeg 빌드
+      # FFmpeg 는 Nvdec 영상 디코딩(게임 내 컷신) 전용이다.
+      # 실패해도 에뮬레이터 본체는 만들 수 있으므로 빌드를 멈추지 않는다.
+      - name: FFmpeg 빌드 (선택)
+        id: ffmpeg
+        continue-on-error: true
         if: steps.deps-cache.outputs.cache-hit != 'true'
         run: ./tvos/scripts/build-deps.sh ffmpeg
+
+      - name: FFmpeg 결과 알림
+        if: steps.ffmpeg.outcome == 'failure'
+        run: |
+          echo "::warning::FFmpeg 빌드 실패 — 영상 디코딩(컷신) 없이 계속 진행합니다."
+          echo "### FFmpeg 빌드 실패" >> "$GITHUB_STEP_SUMMARY"
+          echo "Nvdec 영상 디코딩이 빠진 빌드가 만들어집니다. 에뮬레이션·렌더링·입력·오디오는 정상입니다." >> "$GITHUB_STEP_SUMMARY"
 
       - name: 의존성 산출물 확인
         run: |
           set -e
           echo "--- tvos/deps/out/tvos ---"
           ls -la tvos/deps/out/tvos || true
+          # 필수: 이게 없으면 에뮬레이터가 렌더링을 못 한다
           missing=0
-          for f in SDL3.xcframework libMoltenVK.dylib libavcodec.dylib libavutil.dylib; do
+          for f in SDL3.xcframework libMoltenVK.dylib; do
             if [ ! -e "tvos/deps/out/tvos/$f" ]; then
               echo "::error::필수 의존성 누락: $f"
               missing=1
             fi
           done
           [ "$missing" -eq 0 ] || exit 1
+          # 선택: 없으면 링크 목록에서 빠진다 (컷신만 영향)
+          for f in libavcodec.dylib libavutil.dylib; do
+            [ -e "tvos/deps/out/tvos/$f" ] || echo "::warning::선택 의존성 없음: $f"
+          done
           echo "--- 플랫폼 확인 ---"
           for f in tvos/deps/out/tvos/*.dylib; do
             printf '%s: ' "$(basename "$f")"
@@ -160,6 +176,9 @@ jobs:
           fi
 
       # ── 앱 빌드 ──────────────────────────────────────────────────
+      - name: 없는 의존성을 링크 목록에서 제거
+        run: ./tvos/scripts/prune-optional-deps.sh
+
       - name: Xcode 프로젝트 생성
         run: |
           xcodegen generate --spec project-tvos.yml

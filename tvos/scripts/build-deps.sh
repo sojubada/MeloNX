@@ -251,7 +251,13 @@ build_ffmpeg() {
   rm -rf build-tvos; mkdir -p build-tvos
   cd build-tvos
 
-  local cflags="-arch $ARCH -isysroot $TVOS_SDK -mappletvos-version-min=$TVOS_MIN -fembed-bitcode-marker"
+  # -target 트리플이 반드시 필요하다.
+  # -arch 와 -isysroot 만 주면 clang 은 호스트(macOS) 트리플을 기본값으로 쓰면서
+  # tvOS 시스루트를 참조해 링크가 깨진다 → configure 의
+  # "clang is unable to create an executable file / C compiler test failed".
+  # -fembed-bitcode-marker 는 Xcode 14+ 에서 비트코드가 제거되어 넣지 않는다.
+  local triple="arm64-apple-tvos${TVOS_MIN}"
+  local cflags="-target $triple -arch $ARCH -isysroot $TVOS_SDK"
 
   # tvOS 주의사항
   #  · fork()/system() 금지 → --disable-programs (ffmpeg/ffplay 바이너리 불필요)
