@@ -1,0 +1,48 @@
+# XcodeGen 설정. `brew install xcodegen && xcodegen generate` 로 .xcodeproj 생성.
+# Xcode GUI에서 직접 tvOS App 타겟을 만들어도 되지만, 그 경우 에셋 카탈로그가
+# 함께 생성되므로 아이콘 경고가 나지 않는다. 자세한 건 README.md 참고.
+name: MemProbe
+options:
+  bundleIdPrefix: com.probe
+  deploymentTarget:
+    tvOS: "16.0"
+  createIntermediateGroups: true
+
+targets:
+  MemProbe:
+    type: application
+    platform: tvOS
+    sources:
+      - path: MemProbe
+        excludes:
+          - Info.plist
+    info:
+      path: MemProbe/Info.plist
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.probe.memprobe
+        PRODUCT_NAME: MemProbe
+        TVOS_DEPLOYMENT_TARGET: "16.0"
+        SWIFT_VERSION: "5.0"
+        TARGETED_DEVICE_FAMILY: "3"          # 3 = Apple TV
+        ARCHS: arm64
+        ONLY_ACTIVE_ARCH: NO
+        # 서명은 ldid로 따로 붙인다. Xcode 서명은 끈다.
+        CODE_SIGN_IDENTITY: ""
+        CODE_SIGNING_REQUIRED: NO
+        CODE_SIGNING_ALLOWED: NO
+        CODE_SIGN_ENTITLEMENTS: ""
+        # 프로브이므로 아이콘 에셋을 만들지 않는다. 홈 화면에 빈 타일로 보인다.
+        ASSETCATALOG_COMPILER_APPICON_NAME: ""
+        ENABLE_BITCODE: NO
+        SWIFT_OPTIMIZATION_LEVEL: "-O"
+
+schemes:
+  MemProbe:
+    build:
+      targets:
+        MemProbe: all
+    run:
+      config: Release
+    archive:
+      config: Release

@@ -1,0 +1,131 @@
+name: Build MemProbe (.tipa)
+
+# 1단계 게이트: Apple TV의 실제 메모리 한도와 JIT 가용성을 재는 최소 앱.
+# 본 포팅(build-tvos.yml)에 들어가기 전에 이걸 먼저 돌려야 한다.
+# Mac 없이 CI에서 두 변종을 빌드해 아티팩트로 받는다.
+#
+#   실험군 full      : increased-memory-limit / extended-virtual-addressing /
+#                      dynamic-codesigning / private.memorystatus 포함
+#   대조군 baseline  : 엔타이틀먼트 없음
+#
+# 두 .tipa 를 각각 TrollStore 로 설치해 jetsam active 한도를 비교한다.
+# full 이 baseline 보다 유의하게 크면 tvOS가 엔타이틀먼트를 존중하는 것이고,
+# 같으면 "한도 직접 상향" 버튼으로 memorystatus_control 경로를 확인한다.
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "memprobe-v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [full, baseline]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: appletvos SDK 확인
+        run: |
+          set -e
+          xcodebuild -version
+          xcrun --sdk appletvos --show-sdk-path
+          xcrun --sdk appletvos --show-sdk-version
+
+      - name: 도구 설치
+        run: brew install xcodegen ldid
+
+      - name: Xcode 프로젝트 생성
+        working-directory: tvos/memprobe
+        run: xcodegen generate
+
+      - name: 빌드
+        working-directory: tvos/memprobe
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project MemProbe.xcodeproj \
+            -scheme MemProbe \
+            -configuration Release \
+            -sdk appletvos \
+            -arch arm64 \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build 2>&1 | tee build-${{ matrix.variant }}.log
+
+      - name: 컴파일 에러 요약
+        if: failure()
+        working-directory: tvos/memprobe
+        run: |
+          echo "## MemProbe (${{ matrix.variant }}) 컴파일 에러" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          grep -E "error:" build-${{ matrix.variant }}.log | sort -u | head -40 >> "$GITHUB_STEP_SUMMARY" || true
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: 서명 및 포장
+        working-directory: tvos/memprobe
+        run: |
+          set -e
+          APP="$(find build/Build/Products/Release-appletvos -maxdepth 1 -name 'MemProbe.app' | head -1)"
+          [ -n "$APP" ] || { echo "::error::MemProbe.app 을 찾지 못했습니다"; exit 1; }
+
+          vtool -show-build "$APP/MemProbe" | grep -E "platform|minos|sdk"
+          vtool -show-build "$APP/MemProbe" | grep -q "platform TVOS" \
+            || { echo "::error::tvOS 바이너리가 아닙니다"; exit 1; }
+
+          WORK="$(mktemp -d)"
+          cp -R "$APP" "$WORK/MemProbe.app"
+
+          # baseline 은 번들 ID 를 분리해 full 과 공존시킨다
+          if [ "${{ matrix.variant }}" = "baseline" ]; then
+            /usr/libexec/PlistBuddy -c \
+              "Set :CFBundleIdentifier com.probe.memprobe.baseline" "$WORK/MemProbe.app/Info.plist"
+            /usr/libexec/PlistBuddy -c \
+              "Set :CFBundleDisplayName MemProbe (base)" "$WORK/MemProbe.app/Info.plist" || true
+          fi
+
+          ldid -SMemProbe-${{ matrix.variant }}.entitlements "$WORK/MemProbe.app/MemProbe"
+          echo "--- 서명에 들어간 엔타이틀먼트 ---"
+          ldid -e "$WORK/MemProbe.app/MemProbe"
+
+          mkdir -p "$WORK/Payload" dist
+          mv "$WORK/MemProbe.app" "$WORK/Payload/"
+          ( cd "$WORK" && zip -qry "$GITHUB_WORKSPACE/tvos/memprobe/dist/MemProbe-${{ matrix.variant }}.tipa" Payload )
+          cp dist/MemProbe-${{ matrix.variant }}.tipa dist/MemProbe-${{ matrix.variant }}.ipa
+          ls -la dist/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MemProbe-${{ matrix.variant }}
+          path: tvos/memprobe/dist/*
+          retention-days: 30
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: MemProbe-logs-${{ matrix.variant }}
+          path: tvos/memprobe/build-${{ matrix.variant }}.log
+          if-no-files-found: ignore
+
+      - name: 릴리즈에 첨부
+        if: startsWith(github.ref, 'refs/tags/memprobe-v')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        working-directory: tvos/memprobe
+        run: |
+          set -e
+          TAG="${GITHUB_REF#refs/tags/}"
+          gh release create "$TAG" --title "MemProbe $TAG" \
+            --notes "Apple TV 메모리 한도/JIT 실측 프로브. full 과 baseline 을 각각 설치해 jetsam active 한도를 비교하십시오." \
+            || true
+          gh release upload "$TAG" dist/* --clobber

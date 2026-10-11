@@ -1,0 +1,45 @@
+--- Ryujinx.Library.csproj.orig	2026-10-11 16:24:45.386371378 +0900
++++ Ryujinx.Library.csproj	2026-10-11 16:24:45.423255964 +0900
+@@ -2,7 +2,9 @@
+ 
+   <PropertyGroup>
+     <TargetFramework>net10.0</TargetFramework>
+-    <RuntimeIdentifiers>ios-arm64</RuntimeIdentifiers>
++    <!-- NativeAOT는 .NET 9부터 tvos-arm64 RID를 공식 지원한다.
++         https://learn.microsoft.com/dotnet/core/deploying/native-aot/ios-like-platforms -->
++    <RuntimeIdentifiers>ios-arm64;tvos-arm64</RuntimeIdentifiers>
+     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+     <Version>1.0.0-dirty</Version>
+     <DefineConstants Condition=" '$(ExtraDefineConstants)' != '' ">$(DefineConstants);$(ExtraDefineConstants)</DefineConstants>
+@@ -69,13 +71,27 @@
+ 
+     <Message Importance="normal" Text="Found XCode at $(XcodeSelect)"  Condition=" '$(FindXCode)' == 'true' "/>
+ 
++    <!-- SDK 경로를 RID에서 유도한다. 원래는 iPhoneOS/iPhoneSimulator가
++         하드코딩되어 있어 tvos-arm64 로 publish 해도 iOS SDK에 링크됐다.
++         RID 예: ios-arm64 / iossimulator-arm64 / tvos-arm64 / tvossimulator-arm64 -->
++    <PropertyGroup>
++      <AppleSdkRelPath Condition=" $(RuntimeIdentifier.StartsWith('tvos')) and $(RuntimeIdentifier.Contains('simulator')) ">Platforms/AppleTVSimulator.platform/Developer/SDKs/AppleTVSimulator.sdk</AppleSdkRelPath>
++      <AppleSdkRelPath Condition=" $(RuntimeIdentifier.StartsWith('tvos')) and !$(RuntimeIdentifier.Contains('simulator')) ">Platforms/AppleTVOS.platform/Developer/SDKs/AppleTVOS.sdk</AppleSdkRelPath>
++      <AppleSdkRelPath Condition=" $(RuntimeIdentifier.StartsWith('ios')) and $(RuntimeIdentifier.Contains('simulator')) ">Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator.sdk</AppleSdkRelPath>
++      <AppleSdkRelPath Condition=" $(RuntimeIdentifier.StartsWith('ios')) and !$(RuntimeIdentifier.Contains('simulator')) ">Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk</AppleSdkRelPath>
++    </PropertyGroup>
++
++    <Error Condition=" '$(RuntimeIdentifier)' != '' and '$(AppleSdkRelPath)' == '' "
++           Text="지원하지 않는 RID 입니다: $(RuntimeIdentifier). ios-* 또는 tvos-* 를 쓰십시오." />
++
+     <ItemGroup>
+           <!-- <LinkerArg Include="-Wl,-ld_classic" /> -->
+       <LinkerArg Include="-flto -Ofast" />
+-      <LinkerArg Include="-isysroot %22$(XCodePath)Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator.sdk%22"
+-                 Condition=" $(RuntimeIdentifier.Contains('simulator')) "/>
+-      <LinkerArg Include="-isysroot %22$(XCodePath)Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk%22"
+-                 Condition=" !$(RuntimeIdentifier.Contains('simulator')) "/>
++      <LinkerArg Include="-isysroot %22$(XCodePath)$(AppleSdkRelPath)%22"
++                 Condition=" '$(AppleSdkRelPath)' != '' " />
++      <!-- 최소 OS 버전. tvOS 16.6이 TrollStore 지원 상한이므로 16.0으로 맞춘다. -->
++      <LinkerArg Include="-mappletvos-version-min=16.0"
++                 Condition=" $(RuntimeIdentifier.StartsWith('tvos')) and !$(RuntimeIdentifier.Contains('simulator')) " />
+     </ItemGroup>
+ 
+   </Target>

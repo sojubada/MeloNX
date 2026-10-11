@@ -1,0 +1,1355 @@
+diff -ruN a/Common/FileImporter.swift b/Common/FileImporter.swift
+--- a/Common/FileImporter.swift	2026-10-11 16:37:24.343101532 +0900
++++ b/Common/FileImporter.swift	2026-10-11 16:37:24.734398310 +0900
+@@ -30,6 +30,9 @@
+     }
+ }
+ 
++// tvOS에는 UIDocumentPickerViewController가 없다.
++// 동일한 API를 가진 tvOS 구현은 Compat/FileImporter+tvOS.swift 에 있다.
++#if !os(tvOS)
+ class FileImporterManager: NSObject, ObservableObject, UIDocumentPickerDelegate {
+     static let shared = FileImporterManager()
+     
+@@ -156,6 +159,7 @@
+         cleanup()
+     }
+ }
++#endif
+ 
+ extension FileImporterManager {
+     
+diff -ruN a/Common/Intents/LaunchGameIntent.swift b/Common/Intents/LaunchGameIntent.swift
+--- a/Common/Intents/LaunchGameIntent.swift	2026-10-11 16:37:24.343252018 +0900
++++ b/Common/Intents/LaunchGameIntent.swift	2026-10-11 16:37:24.734588387 +0900
+@@ -11,7 +11,7 @@
+ import Intents
+ import AppIntents
+ 
+-@available(iOS 16.0, *)
++@available(iOS 16.0, tvOS 16.0, *)
+ struct LaunchGameIntentDef: AppIntent {
+     
+     static let title: LocalizedStringResource = "Launch Game"
+@@ -82,7 +82,7 @@
+     }
+ }
+ 
+-@available(iOS 16.0, *)
++@available(iOS 16.0, tvOS 16.0, *)
+ struct GameOptionsProvider: DynamicOptionsProvider {
+     public var ryujinxController = RyujinxController.shared
+     
+diff -ruN a/Common/JIT/EnableJIT.swift b/Common/JIT/EnableJIT.swift
+--- a/Common/JIT/EnableJIT.swift	2026-10-11 16:37:24.343350904 +0900
++++ b/Common/JIT/EnableJIT.swift	2026-10-11 16:37:24.734799860 +0900
+@@ -79,7 +79,7 @@
+         
+         let isInLiveContainer = AppEnvironment.shared.isInLiveContainer
+         
+-        if #available(iOS 19.0, *), !ProcessInfo.processInfo.hasTXM {
++        if #available(iOS 19.0, tvOS 19.0, *), !ProcessInfo.processInfo.hasTXM {
+             let scriptdata = script.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+             
+             urlScheme += isInLiveContainer ? "?pid=\(getpid())&script-name=MeloNX" : ("?bundle-id=" + bundle)
+diff -ruN a/Common/JITChecker.swift b/Common/JITChecker.swift
+--- a/Common/JITChecker.swift	2026-10-11 16:37:24.343553887 +0900
++++ b/Common/JITChecker.swift	2026-10-11 16:37:24.735099187 +0900
+@@ -45,7 +45,7 @@
+         return allocateTest()
+     }
+     
+-    if #available(iOS 19, *) {
++    if #available(iOS 19, tvOS 19, *) {
+         return checkDebugged() && RyujinxController.attemptToMapDualMapping()
+     } else {
+         return checkDebugged() && allocateTest()
+@@ -189,14 +189,20 @@
+ 
+ public extension ProcessInfo {
+     var hasTXMClassic: Bool {
+-        ProcessInfo.processInfo.isiOSAppOnMac ? false :
++        // tvOS 16.6 은 TXM 이전 세대다. 파일시스템 탐색 자체가 무의미하다.
++        #if os(tvOS)
++        return false
++        #else
++
++        return ProcessInfo.processInfo.isiOSAppOnMac ? false :
+         { if let boot = FileManager.default.filePath(atPath: "/System/Volumes/Preboot", withLength: 36), let file = FileManager.default.filePath(atPath: "\(boot)/boot", withLength: 96) { return access("\(file)/usr/standalone/firmware/FUD/Ap,TrustedExecutionMonitor.img4", F_OK) == 0 } else { return (FileManager.default.filePath(atPath: "/private/preboot", withLength: 96).map { access("\($0)/usr/standalone/firmware/FUD/Ap,TrustedExecutionMonitor.img4", F_OK) == 0 }) ?? false } }()
++        #endif
+     }
+     
+     var hasTXM: Bool {
+         guard !isTXMIOKit() else { return true }
+         
+-        if #available(iOS 27, *) {
++        if #available(iOS 27, tvOS 27, *) {
+             let lastNonTXM = 12 // A12
+             let chipInfo = parseChipInfo()
+             
+@@ -207,7 +213,7 @@
+             return true
+         }
+         
+-        if #available(iOS 26.6, *), !hasTXMClassic {
++        if #available(iOS 26.6, tvOS 26.6, *), !hasTXMClassic {
+             let firstTXM = 15 // A15
+             let iPadTXM = 2 // M2
+             let chipInfo = parseChipInfo()
+@@ -227,6 +233,13 @@
+     }
+     
+     func isTXMIOKit() -> Bool {
++        // tvOS SDK에는 IOKit 공개 헤더가 없어 이 코드가 컴파일되지 않는다.
++        // (iOS 타겟은 IOKit.framework 를 명시적으로 링크해서 통과한다)
++        // SPTM/TXM 은 iOS 17 + A15 이상에서 도입되었으므로 tvOS 16.6 에는
++        // 애초에 존재하지 않는다. 따라서 항상 false 로 둔다.
++        #if os(tvOS)
++        return false
++        #else
+         // https://github.com/opa334/Dopamine/commit/e8438b4a64ead3997d2c70a575431cb1b4070fb9give
+         let memory_map: io_registry_entry_t = IORegistryEntryFromPath(kIOMainPortDefault, "IODeviceTree:/chosen/memory-map")
+         guard memory_map != 0 else { return false }
+@@ -237,6 +250,7 @@
+         CFRelease(keysCF)
+         
+         return keys.contains("TXM")
++        #endif
+     }
+     
+     private func parseChipInfo() -> ChipInfo? {
+diff -ruN a/Common/OrientationManager.swift b/Common/OrientationManager.swift
+--- a/Common/OrientationManager.swift	2026-10-11 16:37:24.344110939 +0900
++++ b/Common/OrientationManager.swift	2026-10-11 16:37:24.736038617 +0900
+@@ -1,3 +1,7 @@
++// tvOS에는 UINavigationController.attemptRotationToDeviceOrientation 과
++// UIDevice.orientation 설정이 없다. 같은 이름의 무동작 구현이
++// Compat/UIKitShims+tvOS.swift 에 있다.
++#if !os(tvOS)
+ //
+ //  OrientationManager.swift
+ //  MeloNX
+@@ -67,3 +71,4 @@
+     }
+     
+ }
++#endif
+diff -ruN a/Compat/FileImporter+tvOS.swift b/Compat/FileImporter+tvOS.swift
+--- a/Compat/FileImporter+tvOS.swift	1970-01-01 09:00:00.000000000 +0900
++++ b/Compat/FileImporter+tvOS.swift	2026-10-11 16:37:28.183397728 +0900
+@@ -0,0 +1,115 @@
++//
++//  FileImporter+tvOS.swift
++//  MeloNX (tvOS)
++//
++//  Common/FileImporter.swift 의 FileImporterManager 와 **같은 공개 API**를 가진
++//  tvOS 구현. 호출부 9곳(KeysView, FirmwareView, GamesListView+ToolBar,
++//  SettingsView 등)은 한 줄도 고치지 않는다.
++//
++//  iOS: UIDocumentPickerViewController
++//  tvOS: TVFileBrowser (직접 파일시스템 순회)
++//
++//  Common/FileImporter.swift 의 extension(importSingleFile / importMultipleFiles /
++//  importImages / importDocuments)은 플랫폼 중립이라 그대로 재사용된다.
++//
++
++#if os(tvOS)
++
++import SwiftUI
++import UIKit
++import UniformTypeIdentifiers
++
++final class FileImporterManager: NSObject, ObservableObject {
++
++    static let shared = FileImporterManager()
++
++    private var presented: UIViewController?
++
++    /// iOS 구현과 시그니처가 동일하다. securityScoped 는 tvOS에서 의미가 없어
++    /// 받기만 하고 무시한다 (TrollStore 설치본은 샌드박스 밖을 직접 읽는다).
++    func importFiles(
++        types: [UTType],
++        allowMultiple: Bool = false,
++        securityScoped: Bool = true,
++        completion: @escaping (Result<[URL], Error>) -> Void
++    ) {
++        DispatchQueue.main.async {
++            guard let host = Self.topViewController() else {
++                completion(.failure(FileImportError.noPresenter))
++                return
++            }
++            guard self.presented == nil else {
++                completion(.failure(FileImportError.alreadyPresenting))
++                return
++            }
++
++            let browser = TVFileBrowser(
++                allowedTypes: types,
++                allowMultiple: allowMultiple
++            ) { [weak self] urls in
++                self?.dismiss()
++                if urls.isEmpty {
++                    completion(.failure(FileImportError.cancelled))
++                } else {
++                    completion(.success(urls))
++                }
++            }
++
++            let controller = UIHostingController(rootView: browser)
++            controller.modalPresentationStyle = .fullScreen
++            self.presented = controller
++            host.present(controller, animated: true)
++        }
++    }
++
++    private func dismiss() {
++        presented?.dismiss(animated: true)
++        presented = nil
++    }
++
++    // MARK: 최상위 뷰컨트롤러
++
++    private static func topViewController() -> UIViewController? {
++        let scenes = UIApplication.shared.connectedScenes
++            .compactMap { $0 as? UIWindowScene }
++        let window = scenes
++            .first(where: { $0.activationState == .foregroundActive })?
++            .windows.first(where: \.isKeyWindow)
++            ?? scenes.flatMap(\.windows).first(where: \.isKeyWindow)
++            ?? scenes.flatMap(\.windows).first
++
++        guard let root = window?.rootViewController else { return nil }
++        return topMost(of: root)
++    }
++
++    private static func topMost(of controller: UIViewController) -> UIViewController {
++        if let presented = controller.presentedViewController {
++            return topMost(of: presented)
++        }
++        if let nav = controller as? UINavigationController,
++           let visible = nav.visibleViewController {
++            return topMost(of: visible)
++        }
++        if let tab = controller as? UITabBarController,
++           let selected = tab.selectedViewController {
++            return topMost(of: selected)
++        }
++        return controller
++    }
++}
++
++enum FileImportError: LocalizedError {
++    case cancelled
++    case noPresenter
++    case alreadyPresenting
++
++    var errorDescription: String? {
++        switch self {
++        case .cancelled:        return "선택이 취소되었습니다."
++        case .noPresenter:      return "파일 선택 화면을 띄울 창을 찾지 못했습니다."
++        case .alreadyPresenting:return "파일 선택 화면이 이미 열려 있습니다."
++        }
++    }
++}
++
++#endif
+diff -ruN a/Compat/PhotoPicker+tvOS.swift b/Compat/PhotoPicker+tvOS.swift
+--- a/Compat/PhotoPicker+tvOS.swift	1970-01-01 09:00:00.000000000 +0900
++++ b/Compat/PhotoPicker+tvOS.swift	2026-10-11 16:37:28.183658193 +0900
+@@ -0,0 +1,28 @@
++//
++//  PhotoPicker+tvOS.swift
++//  MeloNX (tvOS)
++//
++//  tvOS에는 사진 라이브러리도 PHPickerViewController도 없다.
++//  CreateAccount / EditAccount 의 호출부를 그대로 두기 위해
++//  같은 이름·같은 바인딩을 가진 뷰를 제공하고, 내용은 앱에 번들된
++//  아바타 그리드(AvatarGridView)로 대체한다.
++//
++
++#if os(tvOS)
++
++import SwiftUI
++import UIKit
++
++struct PhotoPicker: View {
++    @Binding var selectedImage: UIImage?
++    @Environment(\.presentationMode) private var presentationMode
++
++    var body: some View {
++        AvatarGridView { avatar in
++            selectedImage = avatar
++            presentationMode.wrappedValue.dismiss()
++        }
++    }
++}
++
++#endif
+diff -ruN a/Compat/TVControls.swift b/Compat/TVControls.swift
+--- a/Compat/TVControls.swift	1970-01-01 09:00:00.000000000 +0900
++++ b/Compat/TVControls.swift	2026-10-11 16:37:28.183583301 +0900
+@@ -0,0 +1,94 @@
++//
++//  TVControls.swift
++//  MeloNX
++//
++//  tvOS에 없는 SwiftUI 컨트롤의 포커스 기반 대체물과,
++//  두 플랫폼에서 같은 호출부를 쓰게 해 주는 modifier.
++//
++//  이 파일은 양쪽 플랫폼에서 모두 컴파일된다 (#if 는 안쪽에만).
++//
++
++import SwiftUI
++
++// MARK: - 스와이프 액션 호환
++
++extension View {
++    /// iOS에서는 스와이프, tvOS에서는 컨텍스트 메뉴(선택 버튼 길게 누르기)로
++    /// 같은 메뉴를 노출한다. SwiftUI의 swipeActions 는 tvOS에서 쓸 수 없지만
++    /// contextMenu 는 tvOS 14+ 에서 동작한다.
++    @ViewBuilder
++    func rowActions<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
++        #if os(tvOS)
++        self.contextMenu(menuItems: content)
++        #else
++        self.swipeActions(edge: .trailing, content: content)
++        #endif
++    }
++}
++
++// MARK: - tvOS 슬라이더
++
++#if os(tvOS)
++
++/// tvOS에는 SwiftUI Slider 가 없다. 좌/우 입력으로 step 단위 조정하는
++/// 포커스 가능한 대체 컨트롤. 8BitDo D-pad와 Siri Remote 모두 동작한다.
++///
++/// 포커스를 받은 상태에서 좌/우를 누르면 값이 바뀐다. tvOS는 포커스된
++/// 뷰에 방향 입력을 먼저 전달하므로, onMoveCommand 로 받아 처리한다.
++struct TVSlider: View {
++    @Binding var value: Float
++    let range: ClosedRange<Float>
++    let step: Float
++
++    @FocusState private var focused: Bool
++
++    private var fraction: CGFloat {
++        let span = range.upperBound - range.lowerBound
++        guard span > 0 else { return 0 }
++        return CGFloat((value - range.lowerBound) / span)
++    }
++
++    var body: some View {
++        GeometryReader { geo in
++            ZStack(alignment: .leading) {
++                Capsule()
++                    .fill(Color.white.opacity(0.18))
++                    .frame(height: 10)
++                Capsule()
++                    .fill(focused ? Color.white : Color.white.opacity(0.55))
++                    .frame(width: max(10, geo.size.width * fraction), height: 10)
++                Circle()
++                    .fill(Color.white)
++                    .frame(width: focused ? 30 : 22, height: focused ? 30 : 22)
++                    .offset(x: max(0, geo.size.width * fraction - (focused ? 15 : 11)))
++                    .shadow(radius: focused ? 8 : 0)
++            }
++            .frame(height: 40)
++        }
++        .frame(height: 40)
++        .focusable(true)
++        .focused($focused)
++        .animation(.easeOut(duration: 0.12), value: value)
++        .animation(.easeOut(duration: 0.15), value: focused)
++        .onMoveCommand { direction in
++            switch direction {
++            case .left:  adjust(by: -step)
++            case .right: adjust(by: +step)
++            default:     break
++            }
++        }
++        // 포커스 중일 때만 재생/일시정지 버튼으로 양 끝으로 점프
++        .onPlayPauseCommand {
++            value = (value - range.lowerBound) < (range.upperBound - value)
++                ? range.upperBound : range.lowerBound
++        }
++    }
++
++    private func adjust(by delta: Float) {
++        let raw = value + delta
++        let snapped = step > 0 ? (raw / step).rounded() * step : raw
++        value = min(max(snapped, range.lowerBound), range.upperBound)
++    }
++}
++
++#endif
+diff -ruN a/Compat/TVFileBrowser.swift b/Compat/TVFileBrowser.swift
+--- a/Compat/TVFileBrowser.swift	1970-01-01 09:00:00.000000000 +0900
++++ b/Compat/TVFileBrowser.swift	2026-10-11 16:37:28.183222203 +0900
+@@ -0,0 +1,277 @@
++//
++//  TVFileBrowser.swift
++//  MeloNX (tvOS)
++//
++//  tvOS에는 UIDocumentPickerViewController도 Files 앱도 없다.
++//  TrollStore 설치본은 샌드박스 밖을 읽을 수 있으므로, 직접 파일시스템을
++//  훑는 포커스 기반 브라우저로 문서 피커를 대체한다.
++//
++//  반환하는 URL은 평범한 file:// URL이고, ROMFolderManager.addFolder(url:)은
++//  URL만 받으므로 기존 스캔 파이프라인이 그대로 동작한다.
++//
++
++#if os(tvOS)
++
++import SwiftUI
++import UniformTypeIdentifiers
++
++// MARK: - 시작 위치
++
++enum TVBrowseRoot: Identifiable {
++    case appDocuments
++    case path(String, label: String)
++
++    var id: String { url?.path ?? label }
++
++    var label: String {
++        switch self {
++        case .appDocuments: return "앱 Documents"
++        case .path(_, let label): return label
++        }
++    }
++
++    var url: URL? {
++        switch self {
++        case .appDocuments:
++            return FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
++        case .path(let p, _):
++            return FileManager.default.fileExists(atPath: p) ? URL(fileURLWithPath: p) : nil
++        }
++    }
++
++    /// TrollStore 환경에서 ROM을 둘 만한 곳들. 존재하지 않는 경로는
++    /// url 접근자에서 걸러지므로 목록에 나타나지 않는다.
++    static var all: [TVBrowseRoot] {
++        [
++            .appDocuments,
++            .path("/var/mobile/Media", label: "Media (/var/mobile/Media)"),
++            .path("/var/mobile/Documents", label: "Documents (/var/mobile)"),
++            .path("/var/mobile/Downloads", label: "Downloads"),
++            .path("/var/mobile", label: "mobile 홈"),
++            .path("/var/tmp", label: "tmp"),
++            .path("/", label: "루트 (/)"),
++        ]
++    }
++}
++
++// MARK: - 브라우저
++
++struct TVFileBrowser: View {
++
++    /// 빈 배열이면 전부 통과. `.folder`가 들어 있으면 폴더 선택 모드.
++    let allowedTypes: [UTType]
++    let allowMultiple: Bool
++    let onFinish: ([URL]) -> Void
++
++    @State private var stack: [URL] = []
++    @State private var entries: [Entry] = []
++    @State private var selected: Set<URL> = []
++    @State private var errorText: String?
++    @State private var showHidden = false
++
++    private struct Entry: Identifiable, Hashable {
++        let url: URL
++        let isDirectory: Bool
++        let sizeBytes: Int64
++        var id: URL { url }
++        var name: String { url.lastPathComponent }
++    }
++
++    private var folderMode: Bool { allowedTypes.contains(.folder) }
++    private var current: URL? { stack.last }
++
++    var body: some View {
++        VStack(alignment: .leading, spacing: 0) {
++            titleBar
++            Divider().padding(.vertical, 10)
++
++            if let err = errorText {
++                Text(err)
++                    .foregroundStyle(.red)
++                    .padding(.vertical, 24)
++            }
++
++            ScrollView {
++                LazyVStack(alignment: .leading, spacing: 6) {
++                    if current == nil {
++                        ForEach(TVBrowseRoot.all) { root in
++                            if let url = root.url {
++                                rowButton(label: root.label, systemImage: "externaldrive") {
++                                    enter(url)
++                                }
++                            }
++                        }
++                    } else {
++                        rowButton(label: "⬆︎ 상위 폴더", systemImage: "arrow.up") { goUp() }
++                        ForEach(entries) { entry in
++                            entryRow(entry)
++                        }
++                        if entries.isEmpty {
++                            Text("비어 있음").foregroundStyle(.secondary).padding(.vertical, 20)
++                        }
++                    }
++                }
++                .padding(.vertical, 8)
++            }
++
++            Divider().padding(.vertical, 10)
++            footer
++        }
++        .padding(50)
++        .onAppear(perform: reload)
++    }
++
++    // MARK: 구성 요소
++
++    private var titleBar: some View {
++        VStack(alignment: .leading, spacing: 4) {
++            Text(folderMode ? "폴더 선택" : "파일 선택").font(.title2).bold()
++            Text(current?.path ?? "시작 위치를 고르세요")
++                .font(.system(.footnote, design: .monospaced))
++                .foregroundStyle(.secondary)
++                .lineLimit(1)
++                .truncationMode(.head)
++            if !allowedTypes.isEmpty && !folderMode {
++                Text("필터: " + allowedTypes.map { $0.preferredFilenameExtension ?? $0.identifier }
++                        .joined(separator: ", "))
++                    .font(.footnote)
++                    .foregroundStyle(.secondary)
++            }
++        }
++    }
++
++    private var footer: some View {
++        HStack(spacing: 24) {
++            if allowMultiple && !selected.isEmpty {
++                Text("\(selected.count)개 선택됨").foregroundStyle(.secondary)
++                Button("선택 완료") { finish(Array(selected)) }
++            }
++            if folderMode, let dir = current {
++                Button("이 폴더 사용") { finish([dir]) }
++            }
++            Button(showHidden ? "숨김 파일 숨기기" : "숨김 파일 보기") {
++                showHidden.toggle()
++                reload()
++            }
++            Spacer()
++            Button("취소") { finish([]) }
++        }
++    }
++
++    private func entryRow(_ entry: Entry) -> some View {
++        let isPicked = selected.contains(entry.url)
++        let icon = entry.isDirectory ? "folder"
++                 : (isPicked ? "checkmark.circle.fill" : "doc")
++        let detail = entry.isDirectory ? "" : byteLabel(entry.sizeBytes)
++
++        return rowButton(label: entry.name, systemImage: icon, detail: detail) {
++            if entry.isDirectory {
++                enter(entry.url)
++            } else if allowMultiple {
++                if isPicked { selected.remove(entry.url) } else { selected.insert(entry.url) }
++            } else {
++                finish([entry.url])
++            }
++        }
++    }
++
++    private func rowButton(label: String,
++                           systemImage: String,
++                           detail: String = "",
++                           action: @escaping () -> Void) -> some View {
++        Button(action: action) {
++            HStack(spacing: 18) {
++                Image(systemName: systemImage).frame(width: 40)
++                Text(label).lineLimit(1).truncationMode(.middle)
++                Spacer(minLength: 12)
++                if !detail.isEmpty {
++                    Text(detail)
++                        .font(.system(.footnote, design: .monospaced))
++                        .foregroundStyle(.secondary)
++                }
++            }
++            .frame(maxWidth: .infinity, alignment: .leading)
++        }
++    }
++
++    // MARK: 동작
++
++    private func enter(_ url: URL) {
++        stack.append(url)
++        selected.removeAll()
++        reload()
++    }
++
++    private func goUp() {
++        _ = stack.popLast()
++        selected.removeAll()
++        reload()
++    }
++
++    private func reload() {
++        errorText = nil
++        guard let dir = current else { entries = []; return }
++
++        let fm = FileManager.default
++        do {
++            let urls = try fm.contentsOfDirectory(
++                at: dir,
++                includingPropertiesForKeys: [.isDirectoryKey, .fileSizeKey],
++                options: showHidden ? [] : [.skipsHiddenFiles]
++            )
++
++            entries = urls.compactMap { url -> Entry? in
++                let values = try? url.resourceValues(forKeys: [.isDirectoryKey, .fileSizeKey])
++                let isDir = values?.isDirectory ?? false
++                if !isDir && !passesFilter(url) { return nil }
++                return Entry(url: url,
++                             isDirectory: isDir,
++                             sizeBytes: Int64(values?.fileSize ?? 0))
++            }
++            .sorted {
++                if $0.isDirectory != $1.isDirectory { return $0.isDirectory }
++                return $0.name.localizedStandardCompare($1.name) == .orderedAscending
++            }
++        } catch {
++            entries = []
++            errorText = "읽을 수 없습니다: \(error.localizedDescription)"
++        }
++    }
++
++    /// UTType 해석에 의존하지 않고 확장자로도 통과시킨다.
++    /// nsp/xci 같은 커스텀 타입은 기기에 등록돼 있지 않으면 UTType 조회가 실패한다.
++    private func passesFilter(_ url: URL) -> Bool {
++        if allowedTypes.isEmpty { return true }
++        if allowedTypes.contains(.item) || allowedTypes.contains(.data) { return true }
++
++        let ext = url.pathExtension.lowercased()
++        for type in allowedTypes {
++            if let preferred = type.preferredFilenameExtension?.lowercased(), preferred == ext {
++                return true
++            }
++            for tag in type.tags[.filenameExtension] ?? [] where tag.lowercased() == ext {
++                return true
++            }
++        }
++        // 확장자로 못 맞추면 시스템 타입 추론을 한 번 더 시도
++        if let resolved = UTType(filenameExtension: ext) {
++            return allowedTypes.contains { resolved.conforms(to: $0) }
++        }
++        return false
++    }
++
++    private func finish(_ urls: [URL]) {
++        onFinish(urls)
++    }
++
++    private func byteLabel(_ bytes: Int64) -> String {
++        guard bytes > 0 else { return "" }
++        let units = ["B", "KB", "MB", "GB", "TB"]
++        var value = Double(bytes)
++        var idx = 0
++        while value >= 1024 && idx < units.count - 1 { value /= 1024; idx += 1 }
++        return String(format: idx == 0 ? "%.0f %@" : "%.1f %@", value, units[idx])
++    }
++}
++
++#endif
+diff -ruN a/Compat/UIKitShims+tvOS.swift b/Compat/UIKitShims+tvOS.swift
+--- a/Compat/UIKitShims+tvOS.swift	1970-01-01 09:00:00.000000000 +0900
++++ b/Compat/UIKitShims+tvOS.swift	2026-10-11 16:37:28.183500182 +0900
+@@ -0,0 +1,113 @@
++//
++//  UIKitShims+tvOS.swift
++//  MeloNX (tvOS)
++//
++//  tvOS UIKit에 없는 심볼을 앱 모듈에 최소 형태로 되살린다.
++//  목적은 호출부를 고치지 않는 것이다 — 화면 회전과 대체 아이콘은
++//  Apple TV에서 의미가 없으므로 전부 무해한 고정값/무동작으로 둔다.
++//
++//  여기 선언한 타입은 모두 UIKit이 tvOS에서 `unavailable`로 표시한 것들이라
++//  이름 충돌이 생기지 않는다. 앱 모듈 쪽이 먼저 해석된다.
++//
++//  대응 범위
++//   · UIDeviceOrientation / UIInterfaceOrientation / UIInterfaceOrientationMask
++//   · UIDevice.orientation
++//   · ProcessInfo.isiOSAppOnMac            (16곳에서 사용)
++//   · UIApplication 대체 아이콘 API         (AppIconSwitcher 4곳)
++//   · OrientationManager                   (InGameConfigView 2곳)
++//
++
++#if os(tvOS)
++
++import UIKit
++
++// MARK: - 방향 타입
++
++/// Apple TV는 회전하지 않는다. 항상 landscapeLeft로 고정한 값만 돌려준다.
++enum UIDeviceOrientation: Int {
++    case unknown = 0
++    case portrait = 1
++    case portraitUpsideDown = 2
++    case landscapeLeft = 3
++    case landscapeRight = 4
++    case faceUp = 5
++    case faceDown = 6
++
++    /// BaseController+Motion.swift 가 쓰는 프로퍼티.
++    var isValidInterfaceOrientation: Bool {
++        switch self {
++        case .portrait, .portraitUpsideDown, .landscapeLeft, .landscapeRight: return true
++        case .unknown, .faceUp, .faceDown: return false
++        }
++    }
++
++    var isLandscape: Bool { self == .landscapeLeft || self == .landscapeRight }
++    var isPortrait: Bool { self == .portrait || self == .portraitUpsideDown }
++}
++
++enum UIInterfaceOrientation: Int {
++    case unknown = 0
++    case portrait = 1
++    case portraitUpsideDown = 2
++    case landscapeLeft = 4
++    case landscapeRight = 3
++}
++
++struct UIInterfaceOrientationMask: OptionSet {
++    let rawValue: UInt
++    init(rawValue: UInt) { self.rawValue = rawValue }
++
++    static let portrait             = UIInterfaceOrientationMask(rawValue: 1 << 1)
++    static let landscapeLeft        = UIInterfaceOrientationMask(rawValue: 1 << 4)
++    static let landscapeRight       = UIInterfaceOrientationMask(rawValue: 1 << 3)
++    static let portraitUpsideDown   = UIInterfaceOrientationMask(rawValue: 1 << 2)
++    static let landscape: UIInterfaceOrientationMask = [.landscapeLeft, .landscapeRight]
++    static let all: UIInterfaceOrientationMask =
++        [.portrait, .portraitUpsideDown, .landscapeLeft, .landscapeRight]
++    static let allButUpsideDown: UIInterfaceOrientationMask =
++        [.portrait, .landscapeLeft, .landscapeRight]
++}
++
++extension UIDevice {
++    /// tvOS에는 없다. 에뮬레이션 화면이 가로로 고정되므로 landscapeLeft로 답한다.
++    var orientation: UIDeviceOrientation { .landscapeLeft }
++}
++
++// MARK: - Mac 판별
++
++extension ProcessInfo {
++    /// tvOS에는 없는 프로퍼티. Apple TV는 Mac이 아니다.
++    var isiOSAppOnMac: Bool { false }
++}
++
++// MARK: - 대체 앱 아이콘
++
++extension UIApplication {
++    /// tvOS는 대체 아이콘을 지원하지 않는다. 설정 화면이 그대로 뜨되
++    /// 아무 일도 일어나지 않게 한다 (에러도 내지 않는다).
++    var supportsAlternateIcons: Bool { false }
++
++    var alternateIconName: String? { nil }
++
++    func setAlternateIconName(_ alternateIconName: String?,
++                              completionHandler: ((Error?) -> Void)? = nil) {
++        completionHandler?(nil)
++    }
++}
++
++// MARK: - 방향 고정 (무동작)
++
++/// Common/OrientationManager.swift 는 tvOS에서 컴파일되지 않는다
++/// (UINavigationController.attemptRotationToDeviceOrientation 가 없음).
++/// 같은 이름·시그니처의 무동작 구현으로 호출부를 그대로 둔다.
++enum OrientationManager {
++    static func lockOrientation(_ orientation: UIInterfaceOrientationMask,
++                                rotateTo rotateOrientation: UIInterfaceOrientation) {}
++
++    static func lockOrientation(_ orientation: UIInterfaceOrientationMask,
++                                rotateTo rotateOrientation: UIDeviceOrientation) {}
++
++    static func lockCurrentOrientation(_ orientation: UIDeviceOrientation) {}
++}
++
++#endif
+diff -ruN a/Core/Memory/RamDonor.swift b/Core/Memory/RamDonor.swift
+--- a/Core/Memory/RamDonor.swift	2026-10-11 16:37:24.346750377 +0900
++++ b/Core/Memory/RamDonor.swift	2026-10-11 16:37:24.741194176 +0900
+@@ -135,6 +135,15 @@
+     
+     
+     static var isSupported: Bool {
+-        mlx_ram_donor_is_available()
++        // RamDonor는 com.apple.ar.viewer 익스텐션 포인트에 프로세스를 띄워
++        // 그 프로세스의 jetsam 할당량을 XPC 공유메모리로 끌어오는 우회책이다.
++        // tvOS에는 AR Quick Look 익스텐션 포인트가 없어 성립하지 않는다.
++        // 대안: com.apple.private.memorystatus 엔타이틀먼트 + memorystatus_control
++        //       (MemProbe의 "한도 직접 상향" 버튼으로 가능 여부를 먼저 확인할 것)
++        #if os(tvOS)
++        return false
++        #else
++        return mlx_ram_donor_is_available()
++        #endif
+     }
+ }
+diff -ruN a/Core/Models/Options/NativeModels.swift b/Core/Models/Options/NativeModels.swift
+--- a/Core/Models/Options/NativeModels.swift	2026-10-11 16:37:24.347310442 +0900
++++ b/Core/Models/Options/NativeModels.swift	2026-10-11 16:37:24.742286383 +0900
+@@ -251,7 +251,7 @@
+     public static var allCases: [ScalingFilter] {
+         var filters: [ScalingFilter] = [.bilinear, .nearest, .fsr, .area]
+ 
+-        if #available(iOS 16.0, *), MetalFxBridge.isSupported {
++        if #available(iOS 16.0, tvOS 16.0, *), MetalFxBridge.isSupported {
+             filters.append(.metalFx)
+         }
+ 
+diff -ruN a/Core/RyujinxController.swift b/Core/RyujinxController.swift
+--- a/Core/RyujinxController.swift	2026-10-11 16:37:24.348067419 +0900
++++ b/Core/RyujinxController.swift	2026-10-11 16:37:24.743777550 +0900
+@@ -65,7 +65,7 @@
+ 
+ extension UIDevice {
+     var supportsBCTextureCompression: Bool {
+-        if #available(iOS 16.4, *), let device = MTLCreateSystemDefaultDevice() {
++        if #available(iOS 16.4, tvOS 16.4, *), let device = MTLCreateSystemDefaultDevice() {
+            return device.supportsBCTextureCompression
+         }
+         
+diff -ruN a/Info-tvOS.plist b/Info-tvOS.plist
+--- a/Info-tvOS.plist	1970-01-01 09:00:00.000000000 +0900
++++ b/Info-tvOS.plist	2026-10-11 16:37:24.581657394 +0900
+@@ -0,0 +1,104 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
++<plist version="1.0">
++<dict>
++	<!-- iOS 판에서 제거한 키
++	     · UIFileSharingEnabled        : tvOS에 iTunes 파일공유가 없다
++	     · UISupportsDocumentBrowser   : tvOS에 문서 브라우저가 없다
++	     · UIApplicationSceneManifest  : 외부 디스플레이 씬 역할이 무의미
++	     · UIApplicationSupportsIndirectInputEvents / 방향 키
++	     TrollStore 설치본은 샌드박스 밖을 직접 읽으므로 파일공유가 필요 없다.
++	     ROM 반입은 Compat/TVFileBrowser.swift 가 담당한다. -->
++
++	<key>CFBundleExecutable</key>
++	<string>MeloNX</string>
++	<key>CFBundleIdentifier</key>
++	<string>com.stossy11.MeloNX</string>
++	<key>CFBundleName</key>
++	<string>MeloNX</string>
++	<key>CFBundleDisplayName</key>
++	<string>MeloNX</string>
++	<key>CFBundlePackageType</key>
++	<string>APPL</string>
++	<key>CFBundleInfoDictionaryVersion</key>
++	<string>6.0</string>
++	<key>CFBundleShortVersionString</key>
++	<string>1.0</string>
++	<key>CFBundleVersion</key>
++	<string>1</string>
++	<key>LSRequiresIPhoneOS</key>
++	<true/>
++	<key>UIRequiredDeviceCapabilities</key>
++	<array>
++		<string>arm64</string>
++	</array>
++
++	<!-- 게임 컨트롤러. 8BitDo 를 포함한 Extended Gamepad 프로파일 기기.
++	     코드는 iOS 판과 동일하게 GameController + SDL3 양쪽 경로를 쓴다. -->
++	<key>GCSupportedGameControllers</key>
++	<array>
++		<dict>
++			<key>ProfileName</key>
++			<string>ExtendedGamepad</string>
++		</dict>
++	</array>
++	<key>GCRequiresControllerUserInteraction</key>
++	<true/>
++
++	<!-- JIT 제공자 호출용 URL 스킴. TrollStore 설치본에서는
++	     dynamic-codesigning 이 직접 붙으므로 실제로는 쓰이지 않는다. -->
++	<key>CFBundleURLTypes</key>
++	<array>
++		<dict>
++			<key>CFBundleTypeRole</key>
++			<string>Editor</string>
++			<key>CFBundleURLName</key>
++			<string>com.stossy11.MeloNX</string>
++			<key>CFBundleURLSchemes</key>
++			<array>
++				<string>melonx</string>
++			</array>
++		</dict>
++	</array>
++
++	<key>UTExportedTypeDeclarations</key>
++	<array>
++		<dict>
++			<key>UTTypeConformsTo</key>
++			<array>
++				<string>public.data</string>
++				<string>public.archive</string>
++			</array>
++			<key>UTTypeDescription</key>
++			<string>Nintendo Switch Package</string>
++			<key>UTTypeIdentifier</key>
++			<string>com.nintendo.switch-package</string>
++			<key>UTTypeTagSpecification</key>
++			<dict>
++				<key>public.filename-extension</key>
++				<array>
++					<string>nsp</string>
++				</array>
++			</dict>
++		</dict>
++		<dict>
++			<key>UTTypeConformsTo</key>
++			<array>
++				<string>public.data</string>
++				<string>public.archive</string>
++			</array>
++			<key>UTTypeDescription</key>
++			<string>Nintendo Switch Cartridge</string>
++			<key>UTTypeIdentifier</key>
++			<string>com.nintendo.switch-cartridge</string>
++			<key>UTTypeTagSpecification</key>
++			<dict>
++				<key>public.filename-extension</key>
++				<array>
++					<string>xci</string>
++				</array>
++			</dict>
++		</dict>
++	</array>
++</dict>
++</plist>
+diff -ruN a/MeloNX-tvOS.entitlements b/MeloNX-tvOS.entitlements
+--- a/MeloNX-tvOS.entitlements	1970-01-01 09:00:00.000000000 +0900
++++ b/MeloNX-tvOS.entitlements	2026-10-11 16:37:28.183024110 +0900
+@@ -0,0 +1,33 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
++<plist version="1.0">
++<dict>
++	<!-- TrollStore 설치본 전용. 정식 서명으로는 붙지 않는다.
++
++	     dynamic-codesigning
++	       JITChecker.swift 의 jitEnabled() 가 첫 줄에서 이걸 보고 통과한다.
++	       이것이 있으면 StikDebug/StosDebug 같은 외부 디버거가 필요 없다.
++
++	     increased-memory-limit / extended-virtual-addressing
++	       README 기준 전자는 전 기기 필수, 후자는 RAM 4GB 미만 기기 필수.
++	       Apple TV 4K 3세대는 4GB 경계이므로 둘 다 넣는다.
++	       ※ Apple 문서에 tvOS가 기재돼 있지 않다. MemProbe로 먼저 검증할 것.
++
++	     private.memorystatus
++	       memorystatus_control 로 자기 jetsam 한도를 직접 올리기 위함.
++	       tvOS에 없는 RamDonor(ar.viewer 익스텐션) 대체 경로. -->
++
++	<key>platform-application</key>
++	<true/>
++	<key>com.apple.private.security.container-required</key>
++	<false/>
++	<key>dynamic-codesigning</key>
++	<true/>
++	<key>com.apple.developer.kernel.increased-memory-limit</key>
++	<true/>
++	<key>com.apple.developer.kernel.extended-virtual-addressing</key>
++	<true/>
++	<key>com.apple.private.memorystatus</key>
++	<true/>
++</dict>
++</plist>
+diff -ruN a/UI/Emulation/Loading/LoadingProgressBar.swift b/UI/Emulation/Loading/LoadingProgressBar.swift
+--- a/UI/Emulation/Loading/LoadingProgressBar.swift	2026-10-11 16:37:24.572511205 +0900
++++ b/UI/Emulation/Loading/LoadingProgressBar.swift	2026-10-11 16:37:28.176783405 +0900
+@@ -185,7 +185,7 @@
+         uiView.isAnimating = isAnimating
+     }
+     
+-    @available(iOS 16.0, *)
++    @available(iOS 16.0, tvOS 16.0, *)
+     func sizeThatFits(_ proposal: ProposedViewSize, uiView: LoadingProgressBarView, context: Context) -> CGSize? {
+         CGSize(width: containerWidth, height: barHeight)
+     }
+diff -ruN a/UI/Emulation/Metal/MetalFxBridge.swift b/UI/Emulation/Metal/MetalFxBridge.swift
+--- a/UI/Emulation/Metal/MetalFxBridge.swift	2026-10-11 16:37:24.572573174 +0900
++++ b/UI/Emulation/Metal/MetalFxBridge.swift	2026-10-11 16:37:28.176888449 +0900
+@@ -8,7 +8,7 @@
+ import MetalFX
+ import MetalPerformanceShaders
+ 
+-@available(iOS 16.0, *)
++@available(iOS 16.0, tvOS 16.0, *)
+ private struct MetalFxInteropRequest {
+     var device: UnsafeMutableRawPointer?
+     var commandQueue: UnsafeMutableRawPointer?
+@@ -25,7 +25,7 @@
+     var result: Int32
+ }
+ 
+-@available(iOS 16.0, *)
++@available(iOS 16.0, tvOS 16.0, *)
+ private final class MetalFxSpatialState {
+     private struct Configuration: Equatable {
+         let deviceRegistryID: UInt64
+@@ -224,7 +224,7 @@
+     }
+ }
+ 
+-@available(iOS 16.0, *)
++@available(iOS 16.0, tvOS 16.0, *)
+ enum MetalFxBridge {
+     private static let probeCallback = "MetalFxProbe"
+     private static let configureCallback = "MetalFxConfigure"
+diff -ruN a/UI/Emulation/Metal/MetalView.swift b/UI/Emulation/Metal/MetalView.swift
+--- a/UI/Emulation/Metal/MetalView.swift	2026-10-11 16:37:24.572783049 +0900
++++ b/UI/Emulation/Metal/MetalView.swift	2026-10-11 16:37:28.177028531 +0900
+@@ -194,7 +194,7 @@
+             
+             view.framebufferOnly = false
+ 
+-            if #available(iOS 16.0, *) {
++            if #available(iOS 16.0, tvOS 16.0, *) {
+                 MetalFxBridge.registerCallbacks()
+             }
+             
+diff -ruN a/UI/Main/Accounts/AccountManagerView.swift b/UI/Main/Accounts/AccountManagerView.swift
+--- a/UI/Main/Accounts/AccountManagerView.swift	2026-10-11 16:37:24.573233701 +0900
++++ b/UI/Main/Accounts/AccountManagerView.swift	2026-10-11 16:37:28.177634485 +0900
+@@ -56,7 +56,7 @@
+                                 }
+                                 Spacer()
+                             }
+-                            .swipeActions(edge: .trailing) {
++                            .rowActions {
+                                 if profile.user_id != "00000000000000010000000000000000" {
+                                     Button(role: .destructive) {
+                                         var profiles2 = profiles
+diff -ruN a/UI/Main/Accounts/CreateAccount.swift b/UI/Main/Accounts/CreateAccount.swift
+--- a/UI/Main/Accounts/CreateAccount.swift	2026-10-11 16:37:24.573688492 +0900
++++ b/UI/Main/Accounts/CreateAccount.swift	2026-10-11 16:37:28.177945299 +0900
+@@ -7,7 +7,9 @@
+ 
+ import Foundation
+ import SwiftUI
+-import PhotosUI
++#if !os(tvOS)
++import PhotosUI   // tvOS에는 PHPickerViewController 가 없다
++#endif
+ 
+ struct CreateAccount: View {
+     @State private var name: String = ""
+@@ -96,6 +98,9 @@
+     }
+ }
+ 
++// 사진 라이브러리 선택기. tvOS 대체물(번들 아바타)은
++// Compat/PhotoPicker+tvOS.swift 에 같은 이름으로 있다.
++#if !os(tvOS)
+ struct PhotoPicker: UIViewControllerRepresentable {
+     @Binding var selectedImage: UIImage?
+     
+@@ -149,3 +154,4 @@
+         }
+     }
+ }
++#endif
+diff -ruN a/UI/Main/GamesList/AddonManager/DLCManagerSheet.swift b/UI/Main/GamesList/AddonManager/DLCManagerSheet.swift
+--- a/UI/Main/GamesList/AddonManager/DLCManagerSheet.swift	2026-10-11 16:37:24.574254553 +0900
++++ b/UI/Main/GamesList/AddonManager/DLCManagerSheet.swift	2026-10-11 16:37:28.178527381 +0900
+@@ -72,7 +72,7 @@
+     
+     private var emptyStateView: some View {
+         Group {
+-            if #available(iOS 17, *) {
++            if #available(iOS 17, tvOS 17, *) {
+                 ContentUnavailableView(
+                     "No DLCs Found",
+                     systemImage: "puzzlepiece.extension",
+@@ -102,7 +102,7 @@
+     
+     private func dlcRow(_ dlc: DLCItem) -> some View {
+         Group {
+-            if #available(iOS 15, *) {
++            if #available(iOS 15, tvOS 15, *) {
+                 dlcRowNew(dlc)
+             } else {
+                 dlcRowOld(dlc)
+@@ -110,7 +110,7 @@
+         }
+     }
+     
+-    @available(iOS 15, *)
++    @available(iOS 15, tvOS 15, *)
+     private func dlcRowNew(_ dlc: DLCItem) -> some View {
+         Button {
+             toggleDLC(dlc)
+@@ -126,7 +126,7 @@
+             .contentShape(Rectangle())
+         }
+         .buttonStyle(.plain)
+-        .swipeActions(edge: .trailing) {
++        .rowActions {
+             Button(role: .destructive) {
+                 if let index = dlcs.firstIndex(where: { $0.relativePath == dlc.relativePath }) {
+                     removeDLC(at: IndexSet(integer: index))
+diff -ruN a/UI/Main/GamesList/AddonManager/ModsManagerSheet.swift b/UI/Main/GamesList/AddonManager/ModsManagerSheet.swift
+--- a/UI/Main/GamesList/AddonManager/ModsManagerSheet.swift	2026-10-11 16:37:24.574363763 +0900
++++ b/UI/Main/GamesList/AddonManager/ModsManagerSheet.swift	2026-10-11 16:37:28.178642964 +0900
+@@ -99,7 +99,7 @@
+     
+     private var emptyStateView: some View {
+         Group {
+-            if #available(iOS 17, *) {
++            if #available(iOS 17, tvOS 17, *) {
+                 ContentUnavailableView(
+                     "No Mods Found",
+                     systemImage: "arrow.down.circle",
+@@ -171,7 +171,7 @@
+                 Label("Delete", systemImage: "trash")
+             }
+         }
+-        .swipeActions(edge: .trailing) {
++        .rowActions {
+             Button(role: .destructive) {
+                 if let index = mods.firstIndex(where: { $0.path == update.path }) {
+                     removeUpdate(at: IndexSet(integer: index))
+diff -ruN a/UI/Main/GamesList/AddonManager/UpdateManagerSheet.swift b/UI/Main/GamesList/AddonManager/UpdateManagerSheet.swift
+--- a/UI/Main/GamesList/AddonManager/UpdateManagerSheet.swift	2026-10-11 16:37:24.574456541 +0900
++++ b/UI/Main/GamesList/AddonManager/UpdateManagerSheet.swift	2026-10-11 16:37:28.178763770 +0900
+@@ -71,7 +71,7 @@
+     
+     private var emptyStateView: some View {
+         Group {
+-            if #available(iOS 17, *) {
++            if #available(iOS 17, tvOS 17, *) {
+                 ContentUnavailableView(
+                     "No Updates Found",
+                     systemImage: "arrow.down.circle",
+@@ -101,7 +101,7 @@
+     
+     private func updateRow(_ update: UpdateItem) -> some View {
+         Group {
+-            if #available(iOS 15, *) {
++            if #available(iOS 15, tvOS 15, *) {
+                 updateRowNew(update)
+             } else {
+                 updateRowOld(update)
+@@ -109,7 +109,7 @@
+         }
+     }
+     
+-    @available(iOS 15, *)
++    @available(iOS 15, tvOS 15, *)
+     private func updateRowNew(_ update: UpdateItem) -> some View {
+         Button {
+             toggleSelection(update)
+@@ -125,7 +125,7 @@
+             .contentShape(Rectangle())
+         }
+         .buttonStyle(.plain)
+-        .swipeActions(edge: .trailing) {
++        .rowActions {
+             Button(role: .destructive) {
+                 if let index = updates.firstIndex(where: { $0.relativePath == update.relativePath }) {
+                     removeUpdate(at: IndexSet(integer: index))
+diff -ruN a/UI/Main/GamesList/Elements/GamesListView+ToolBar.swift b/UI/Main/GamesList/Elements/GamesListView+ToolBar.swift
+--- a/UI/Main/GamesList/Elements/GamesListView+ToolBar.swift	2026-10-11 16:37:24.575223697 +0900
++++ b/UI/Main/GamesList/Elements/GamesListView+ToolBar.swift	2026-10-11 16:37:28.179440484 +0900
+@@ -10,6 +10,19 @@
+ 
+ extension GamesListView {
+     func toolbarHandler() -> some ToolbarContent {
++        #if os(tvOS)
++        // tvOS에는 .topBarLeading / .topBarTrailing 배치와
++        // .sharedBackgroundVisibility(iOS 26) 가 없다.
++        // 포커스 내비게이션에서는 .automatic 이 적절하다.
++        return Group {
++            ToolbarItem(placement: .automatic) {
++                addGameButton
++            }
++            ToolbarItem(placement: .automatic) {
++                optionsSection
++            }
++        }
++        #else
+         if #available(iOS 19.0, *) {
+             return Group {
+                 ToolbarItem(placement: .topBarTrailing) {
+@@ -33,6 +46,7 @@
+                 }
+             }
+         }
++        #endif
+     }
+     
+     
+@@ -71,7 +85,9 @@
+             
+             
+             Button {
+-                URL.documentsDirectory.openInFiles()
++                #if !os(tvOS)
++                URL.documentsDirectory.openInFiles()   // tvOS에는 Files 앱이 없다
++                #endif
+             } label: {
+                 Label("Show MeloNX Folder", systemImage: "folder")
+             }
+diff -ruN a/UI/Main/GamesList/GamesListView.swift b/UI/Main/GamesList/GamesListView.swift
+--- a/UI/Main/GamesList/GamesListView.swift	2026-10-11 16:37:24.575397803 +0900
++++ b/UI/Main/GamesList/GamesListView.swift	2026-10-11 16:37:28.180016102 +0900
+@@ -193,7 +193,7 @@
+     
+     private var emptyStateView: some View {
+         Group {
+-            if #available(iOS 17, *) {
++            if #available(iOS 17, tvOS 17, *) {
+                 ContentUnavailableView(
+                     "No Games Found",
+                     systemImage: "square.and.arrow.down",
+@@ -272,7 +272,7 @@
+ 
+ struct HiddenScrollBackground: ViewModifier {
+     func body(content: Content) -> some View {
+-        if #available(iOS 16.0, *) {
++        if #available(iOS 16.0, tvOS 16.0, *) {
+             content.scrollContentBackground(.hidden)
+         } else {
+             content
+diff -ruN a/UI/Main/Pre26/Pre26Slider.swift b/UI/Main/Pre26/Pre26Slider.swift
+--- a/UI/Main/Pre26/Pre26Slider.swift	2026-10-11 16:37:24.575575478 +0900
++++ b/UI/Main/Pre26/Pre26Slider.swift	2026-10-11 16:37:28.180229999 +0900
+@@ -1,3 +1,5 @@
++// DragGesture(터치) 기반. tvOS 대체물은 Compat/TVControls.swift 의 TVSlider.
++#if !os(tvOS)
+ //
+ //  Pre26Slider.swift
+ //  MeloNX
+@@ -63,4 +65,4 @@
+         .frame(height: 40)
+     }
+ }
+-
++#endif
+diff -ruN a/UI/Main/Settings/Elements/SliderRow.swift b/UI/Main/Settings/Elements/SliderRow.swift
+--- a/UI/Main/Settings/Elements/SliderRow.swift	2026-10-11 16:37:24.577147601 +0900
++++ b/UI/Main/Settings/Elements/SliderRow.swift	2026-10-11 16:37:28.181477524 +0900
+@@ -63,11 +63,17 @@
+                     .font(.subheadline.monospacedDigit())
+                     .foregroundColor(.secondary)
+             }
++            #if os(tvOS)
++            // tvOS에는 SwiftUI Slider 가 없고 Pre26Slider 는 DragGesture(터치)
++            // 기반이라 쓸 수 없다. 좌/우 입력으로 조정하는 대체 컨트롤을 쓴다.
++            TVSlider(value: value, range: range, step: step)
++            #else
+             if settings.disableLiquidGlass.value {
+                 Pre26Slider(value: value, range: range, step: step)
+             } else {
+                 Slider(value: value, in: range, step: step)
+             }
++            #endif
+             HStack {
+                 Text(minLabel).font(.caption2).foregroundColor(.secondary)
+                 Spacer()
+diff -ruN a/UI/Main/Settings/External/AppIconSwitcher.swift b/UI/Main/Settings/External/AppIconSwitcher.swift
+--- a/UI/Main/Settings/External/AppIconSwitcher.swift	2026-10-11 16:37:24.577222756 +0900
++++ b/UI/Main/Settings/External/AppIconSwitcher.swift	2026-10-11 16:37:28.181576984 +0900
+@@ -144,7 +144,7 @@
+     
+     private func setupColumns() {
+         /*
+-        if #available(iOS 19, *) {
++        if #available(iOS 19, tvOS 19, *) {
+             appIcons = [
+                 AppIcon(iconNames: ["Default": UIImage.appIcon(), "Round": "RoundAppIcon"], creator: "CycloKid (Liquid Glass by Transistor)"),
+                 AppIcon(iconNames: ["Pixel Default": "PixelAppIcon", "Pixel Round": "PixelRoundAppIcon"], creator: "Nobody (Liquid Glass by Transistor)"),
+@@ -218,7 +218,7 @@
+             }
+         } else {
+             var trimmedIconName = iconName
+-            if #available(iOS 26, *) {
++            if #available(iOS 26, tvOS 26, *) {
+                 trimmedIconName = iconName.replacingOccurrences(of: "_18", with: "")
+             }
+             
+diff -ruN a/UI/Main/Settings/SettingsView.swift b/UI/Main/Settings/SettingsView.swift
+--- a/UI/Main/Settings/SettingsView.swift	2026-10-11 16:37:24.577899856 +0900
++++ b/UI/Main/Settings/SettingsView.swift	2026-10-11 16:37:28.182344704 +0900
+@@ -1071,7 +1071,7 @@
+                 
+                 let model = UIDevice.modelName
+                 if !model.contains("Mac") || !ProcessInfo.processInfo.isiOSAppOnMac {
+-                    if #available(iOS 19, *) {
++                    if #available(iOS 19, tvOS 19, *) {
+                         HStack {
+                             Label("Dual Mapped JIT", systemImage: "light.strip.2")
+                             Spacer()
+@@ -1121,7 +1121,7 @@
+ extension View {
+     @ViewBuilder
+     func scrollDismissesKeyboardIfAvailable() -> some View {
+-        if #available(iOS 16.0, *) {
++        if #available(iOS 16.0, tvOS 16.0, *) {
+             self.scrollDismissesKeyboard(.interactively)
+         } else {
+             self
+@@ -1178,7 +1178,7 @@
+     @ViewBuilder var content: () -> Content
+     
+     var body: some View {
+-        if #available(iOS 16, *) {
++        if #available(iOS 16, tvOS 16, *) {
+             SwiftUI.NavigationStack(root: content)
+         } else {
+             NavigationStackBackport.NavigationStack(root: content)
+diff -ruN a/UI/MeloNXApp.swift b/UI/MeloNXApp.swift
+--- a/UI/MeloNXApp.swift	2026-10-11 16:37:24.578100675 +0900
++++ b/UI/MeloNXApp.swift	2026-10-11 16:37:28.182432486 +0900
+@@ -38,7 +38,7 @@
+             .init(string: "MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS", value: device.argumentBuffersSupport.rawValue >= MTLArgumentBuffersTier.tier2.rawValue ? "1" : "0")
+         ])
+         
+-        if #available(iOS 17, macOS 14, *) {
++        if #available(iOS 17, tvOS 17, macOS 14, *) {
+             environment.append(contentsOf: [
+                 .init(string: "MVK_SUPPORTS_EXT_DYN_STATE", value: device.supportsFamily(.apple4) ? "1" : "0")
+             ])
+@@ -49,7 +49,7 @@
+         }
+     }
+     
+-    if #available(iOS 19, *) {
++    if #available(iOS 19, tvOS 19, *) {
+         environment.append(contentsOf: [
+             .init(string: "HAS_TXM", value: ProcessInfo.processInfo.hasTXM && !ProcessInfo.processInfo.isiOSAppOnMac ? "1" : "0"),
+             .init(string: "DUAL_MAPPED_JIT", value: !ProcessInfo.processInfo.isiOSAppOnMac ? "1" : "0")
+@@ -176,6 +176,9 @@
+         view.addSubview(host.view)
+         host.didMove(toParent: self)
+ 
++        // Apple TV 자체가 디스플레이이므로 외부 디스플레이 등록이 필요 없고,
++        // registerSceneAccessory 는 tvOS에 존재하지 않는다.
++        #if !os(tvOS)
+         if #available(iOS 27.0, *) {
+             let configuration = UISceneConfiguration()
+             configuration.delegateClass = ExternalDisplaySceneDelegate.self
+@@ -183,6 +186,7 @@
+                 .externalNonInteractive(sceneConfiguration: configuration)
+             )
+         }
++        #endif
+     }
+ }
+ 

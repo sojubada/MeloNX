@@ -1,0 +1,123 @@
+# XcodeGen 설정 — MeloNX tvOS 타겟
+#
+# 기존 MeloNX.xcodeproj 를 손으로 고치지 않는다. Xcode 16의
+# "file system synchronized group" 때문에 pbxproj 를 스크립트로 편집하기가
+# 까다롭고, CI에서 재현되지 않는다. 대신 tvOS 전용 프로젝트를 매번 생성한다.
+#
+#   brew install xcodegen
+#   xcodegen generate --spec project-tvos.yml
+#   → MeloNX-tvOS.xcodeproj
+#
+# 선행 조건 (CI 워크플로가 순서대로 처리한다)
+#   1. tvos/patches/*.patch 적용
+#   2. tvos/scripts/build-deps.sh 로 tvos/deps/out/tvos/* 생성
+#   3. tvos/scripts/prepare-packages.sh 로 SPM 패키지를 tvOS 대응으로 포크
+#   4. dotnet publish -r tvos-arm64 로 Ryujinx.Library.dylib 생성
+
+name: MeloNX-tvOS
+options:
+  bundleIdPrefix: com.stossy11
+  deploymentTarget:
+    tvOS: "16.0"
+  createIntermediateGroups: true
+  generateEmptyDirectories: true
+
+packages:
+  # 원격 패키지는 Package.swift 에 tvOS 플랫폼이 없어 그대로 쓸 수 없다.
+  # prepare-packages.sh 가 클론해서 platforms 에 .tvOS(.v16) 를 넣는다.
+  Melo-Controller:
+    path: tvos/packages/Melo-Controller
+  NavigationStackBackport:
+    path: tvos/packages/navigation-stack-backport
+
+targets:
+  MeloNX-tvOS:
+    type: application
+    platform: tvOS
+
+    sources:
+      - path: src/MeloNX/MeloNX
+        excludes:
+          # 프리빌트는 전부 ios-arm64 슬라이스뿐이다. tvOS 산출물을
+          # dependencies 에서 명시적으로 링크한다.
+          - "Dependencies/**"
+          # iOS 판 Info.plist / 엔타이틀먼트는 쓰지 않는다.
+          - "Info.plist"
+          - "MeloNX.entitlements"
+
+    dependencies:
+      # ── .NET NativeAOT 코어 (dotnet publish -r tvos-arm64 산출물)
+      - framework: src/Ryujinx.Library/bin/Release/net10.0/tvos-arm64/native/Ryujinx.Library.dylib
+        embed: true
+        codeSign: false   # ldid 로 따로 서명한다
+
+      # ── 런타임에 실제로 로드되는 네이티브 4개
+      #    Library.cs:143  NativeLibrary.Load("@rpath/SDL3.framework/SDL3")
+      - framework: tvos/deps/out/tvos/SDL3.xcframework
+        embed: true
+        codeSign: false   # ldid 로 따로 서명한다
+      #    MVKInitialization.cs  [LibraryImport("libMoltenVK.dylib")]
+      - framework: tvos/deps/out/tvos/libMoltenVK.dylib
+        embed: true
+        codeSign: false   # ldid 로 따로 서명한다
+      #    FFmpegApi.cs  AvCodecLibraryName = "avcodec" / AvUtilLibraryName = "avutil"
+      #    (Nvdec 영상 디코딩 전용 — 컷신 없는 타이틀은 없어도 동작)
+      - framework: tvos/deps/out/tvos/libavcodec.dylib
+        embed: true
+        codeSign: false   # ldid 로 따로 서명한다
+      - framework: tvos/deps/out/tvos/libavutil.dylib
+        embed: true
+        codeSign: false   # ldid 로 따로 서명한다
+
+      # ── SPM
+      - package: Melo-Controller
+      - package: NavigationStackBackport
+
+      # IOKit.framework 는 링크하지 않는다.
+      # iOS 판은 TXM 탐지(JITChecker.isTXMIOKit)를 위해 링크했지만,
+      # tvOS SDK 에는 공개 헤더가 없고 tvOS 16.6 은 TXM 이전 세대다.
+      # 01-swift-tvos.patch 가 해당 코드를 false 로 고정한다.
+
+    info:
+      path: tvos/Info-tvOS.plist
+
+    settings:
+      base:
+        PRODUCT_NAME: MeloNX
+        PRODUCT_BUNDLE_IDENTIFIER: com.stossy11.MeloNX
+        TVOS_DEPLOYMENT_TARGET: "16.0"
+        TARGETED_DEVICE_FAMILY: "3"          # 3 = Apple TV
+        ARCHS: arm64
+        ONLY_ACTIVE_ARCH: NO
+        SWIFT_VERSION: "5.0"
+        SWIFT_OBJC_BRIDGING_HEADER: src/MeloNX/MeloNX/Core/MeloNX-Bridging-Header.h
+        CLANG_ENABLE_MODULES: YES
+        ENABLE_USER_SCRIPT_SANDBOXING: NO
+        LD_RUNPATH_SEARCH_PATHS:
+          - "$(inherited)"
+          - "@executable_path/Frameworks"
+        # 서명은 ldid 로 따로 붙인다 (TrollStore 가 CoreTrust 우회로 수용).
+        CODE_SIGN_IDENTITY: ""
+        CODE_SIGNING_REQUIRED: NO
+        CODE_SIGNING_ALLOWED: NO
+        CODE_SIGN_ENTITLEMENTS: ""
+        # tvOS 레이어드 앱 아이콘/Top Shelf 에셋을 만들지 않았다.
+        # 홈 화면에 빈 타일로 보이지만 동작에는 지장 없다.
+        ASSETCATALOG_COMPILER_APPICON_NAME: ""
+        ENABLE_BITCODE: NO
+      configs:
+        Release:
+          SWIFT_OPTIMIZATION_LEVEL: "-O"
+          SWIFT_COMPILATION_MODE: wholemodule
+
+# xcodebuild -scheme 으로 빌드하려면 공유 스킴이 있어야 한다.
+# XcodeGen 은 명시하지 않으면 스킴을 만들지 않는다.
+schemes:
+  MeloNX-tvOS:
+    build:
+      targets:
+        MeloNX-tvOS: all
+    run:
+      config: Release
+    archive:
+      config: Release

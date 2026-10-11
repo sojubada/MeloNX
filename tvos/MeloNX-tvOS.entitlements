@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- TrollStore 설치본 전용. 정식 서명으로는 붙지 않는다.
+
+	     dynamic-codesigning
+	       JITChecker.swift 의 jitEnabled() 가 첫 줄에서 이걸 보고 통과한다.
+	       이것이 있으면 StikDebug/StosDebug 같은 외부 디버거가 필요 없다.
+
+	     increased-memory-limit / extended-virtual-addressing
+	       README 기준 전자는 전 기기 필수, 후자는 RAM 4GB 미만 기기 필수.
+	       Apple TV 4K 3세대는 4GB 경계이므로 둘 다 넣는다.
+	       ※ Apple 문서에 tvOS가 기재돼 있지 않다. MemProbe로 먼저 검증할 것.
+
+	     private.memorystatus
+	       memorystatus_control 로 자기 jetsam 한도를 직접 올리기 위함.
+	       tvOS에 없는 RamDonor(ar.viewer 익스텐션) 대체 경로. -->
+
+	<key>platform-application</key>
+	<true/>
+	<key>com.apple.private.security.container-required</key>
+	<false/>
+	<key>dynamic-codesigning</key>
+	<true/>
+	<key>com.apple.developer.kernel.increased-memory-limit</key>
+	<true/>
+	<key>com.apple.developer.kernel.extended-virtual-addressing</key>
+	<true/>
+	<key>com.apple.private.memorystatus</key>
+	<true/>
+</dict>
+</plist>

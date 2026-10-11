@@ -1,0 +1,260 @@
+name: Build tvOS (.tipa)
+
+# 수동 실행하거나 tvos-v* 태그를 밀면 릴리즈에 .tipa / .ipa 를 첨부한다.
+#
+#   gh workflow run "Build tvOS (.tipa)"
+#   git tag tvos-v0.1 && git push origin tvos-v0.1
+#
+# Mac이 없어도 된다. GitHub의 macOS 러너에 Xcode와 appletvos SDK가 들어 있다.
+# 초기에는 컴파일 에러 수집기로 쓰는 것이 정상적인 사용법이다 — 에러 로그를
+# 아티팩트로 올리므로 그걸 보고 고쳐 커밋하면 된다.
+
+on:
+  workflow_dispatch:
+    inputs:
+      rebuild_deps:
+        description: "네이티브 의존성 캐시를 무시하고 다시 빌드"
+        type: boolean
+        default: false
+  push:
+    tags:
+      - "tvos-v*"
+
+permissions:
+  contents: write        # 릴리즈 생성용
+
+env:
+  # 의존성 빌드 방식을 바꿨을 때 이 숫자를 올리면 캐시가 무효화된다.
+  DEPS_CACHE_VERSION: "1"
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 350
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── 환경 확인 ────────────────────────────────────────────────
+      - name: Xcode 및 tvOS SDK 확인
+        run: |
+          set -e
+          xcodebuild -version
+          echo "--- 설치된 SDK ---"
+          xcodebuild -showsdks | grep -i "tvos" || true
+          SDK="$(xcrun --sdk appletvos --show-sdk-path 2>/dev/null || true)"
+          if [ -z "$SDK" ]; then
+            echo "::error::이 러너에 appletvos SDK가 없습니다. 다른 macOS 이미지를 쓰세요."
+            exit 1
+          fi
+          echo "appletvos SDK: $SDK"
+          xcrun --sdk appletvos --show-sdk-version
+
+      - name: 빌드 도구 설치
+        run: |
+          brew update --quiet || true
+          brew install xcodegen ldid cmake pkg-config nasm || true
+          xcodegen --version
+          ldid -h 2>&1 | head -1 || true
+
+      - name: .NET SDK 설치
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+        # global.json 이 10.0.100 + rollForward: latestFeature 를 요구한다.
+        # 실패하면 아래 fallback 이 받는다.
+
+      - name: .NET 설치 확인
+        run: |
+          dotnet --info | head -20
+          echo "--- 사용 가능한 tvOS NativeAOT 런타임 팩 확인 ---"
+          dotnet --list-sdks
+
+      # ── 소스 패치 ────────────────────────────────────────────────
+      - name: tvOS 패치 적용
+        run: |
+          set -e
+          cd src/MeloNX/MeloNX
+          if [ -d Compat ]; then
+            echo "Compat/ 이 이미 있습니다 — 패치가 적용된 것으로 간주하고 건너뜁니다."
+          else
+            patch -p1 --forward < "$GITHUB_WORKSPACE/tvos/patches/01-swift-tvos.patch"
+          fi
+          cd "$GITHUB_WORKSPACE"
+          if grep -q "AppleSdkRelPath" src/Ryujinx.Library/Ryujinx.Library.csproj; then
+            echo "csproj 가 이미 패치되어 있습니다 — 건너뜁니다."
+          else
+            patch -p0 src/Ryujinx.Library/Ryujinx.Library.csproj \
+              < tvos/patches/02-ryujinx-library-csproj.patch
+          fi
+          echo "--- csproj RID 확인 ---"
+          grep -n "RuntimeIdentifiers\|AppleSdkRelPath" src/Ryujinx.Library/Ryujinx.Library.csproj | head
+
+      - name: SPM 패키지 tvOS 대응 포크
+        run: ./tvos/scripts/prepare-packages.sh
+
+      # ── 네이티브 의존성 (캐시) ───────────────────────────────────
+      - name: 의존성 캐시 복원
+        id: deps-cache
+        if: ${{ inputs.rebuild_deps != true }}
+        uses: actions/cache@v4
+        with:
+          path: tvos/deps/out
+          key: tvos-deps-v${{ env.DEPS_CACHE_VERSION }}-${{ runner.os }}-${{ hashFiles('tvos/scripts/build-deps.sh') }}
+
+      - name: MoltenVK 빌드
+        if: steps.deps-cache.outputs.cache-hit != 'true'
+        run: ./tvos/scripts/build-deps.sh moltenvk
+
+      - name: SDL3 빌드
+        if: steps.deps-cache.outputs.cache-hit != 'true'
+        run: ./tvos/scripts/build-deps.sh sdl3
+
+      - name: FFmpeg 빌드
+        if: steps.deps-cache.outputs.cache-hit != 'true'
+        run: ./tvos/scripts/build-deps.sh ffmpeg
+
+      - name: 의존성 산출물 확인
+        run: |
+          set -e
+          echo "--- tvos/deps/out/tvos ---"
+          ls -la tvos/deps/out/tvos || true
+          missing=0
+          for f in SDL3.xcframework libMoltenVK.dylib libavcodec.dylib libavutil.dylib; do
+            if [ ! -e "tvos/deps/out/tvos/$f" ]; then
+              echo "::error::필수 의존성 누락: $f"
+              missing=1
+            fi
+          done
+          [ "$missing" -eq 0 ] || exit 1
+          echo "--- 플랫폼 확인 ---"
+          for f in tvos/deps/out/tvos/*.dylib; do
+            printf '%s: ' "$(basename "$f")"
+            vtool -show-build "$f" 2>/dev/null | grep -m1 platform || echo "?"
+          done
+
+      # ── .NET 코어 ────────────────────────────────────────────────
+      - name: Ryujinx.Library (tvos-arm64 NativeAOT) 빌드
+        run: |
+          set -o pipefail
+          dotnet publish \
+            -c Release \
+            -r tvos-arm64 \
+            -p:ExtraDefineConstants=DISABLE_UPDATER \
+            src/Ryujinx.Library \
+            --self-contained true 2>&1 | tee dotnet-publish.log
+
+      - name: 코어 dylib 플랫폼 확인
+        run: |
+          set -e
+          DYLIB=src/Ryujinx.Library/bin/Release/net10.0/tvos-arm64/native/Ryujinx.Library.dylib
+          if [ ! -f "$DYLIB" ]; then
+            echo "::error::$DYLIB 가 없습니다. dotnet-publish.log 를 확인하세요."
+            find src/Ryujinx.Library/bin -name '*.dylib' || true
+            exit 1
+          fi
+          vtool -show-build "$DYLIB" | grep -E "platform|minos|sdk"
+          if ! vtool -show-build "$DYLIB" | grep -q "platform TVOS"; then
+            echo "::error::코어가 iOS SDK로 링크되었습니다. 02-ryujinx-library-csproj.patch 가 적용되지 않았습니다."
+            exit 1
+          fi
+
+      # ── 앱 빌드 ──────────────────────────────────────────────────
+      - name: Xcode 프로젝트 생성
+        run: |
+          xcodegen generate --spec project-tvos.yml
+          ls -la MeloNX-tvOS.xcodeproj
+
+      - name: xcodebuild
+        id: xcb
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project MeloNX-tvOS.xcodeproj \
+            -scheme MeloNX-tvOS \
+            -configuration Release \
+            -sdk appletvos \
+            -arch arm64 \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build 2>&1 | tee xcodebuild.log
+
+      - name: 컴파일 에러 요약
+        if: failure()
+        run: |
+          echo "## 컴파일 에러" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          grep -E "error:" xcodebuild.log | sort -u | head -80 >> "$GITHUB_STEP_SUMMARY" || true
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "전체 로그는 아티팩트 build-logs 에 있습니다." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: 빌드 로그 업로드
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs
+          path: |
+            xcodebuild.log
+            dotnet-publish.log
+          if-no-files-found: ignore
+          retention-days: 14
+
+      # ── 포장 ─────────────────────────────────────────────────────
+      - name: .tipa / .ipa 포장
+        run: |
+          set -e
+          APP="$(find build/Build/Products/Release-appletvos -maxdepth 1 -name '*.app' | head -1)"
+          [ -n "$APP" ] || { echo "::error::.app 산출물을 찾지 못했습니다"; exit 1; }
+          echo "앱: $APP"
+          ./tvos/scripts/package-tipa.sh "$APP" "$GITHUB_WORKSPACE/dist"
+
+      - name: 결과 업로드
+        uses: actions/upload-artifact@v4
+        with:
+          name: MeloNX-tvOS
+          path: dist/*
+          retention-days: 30
+
+      # ── 릴리즈 (태그를 밀었을 때만) ──────────────────────────────
+      - name: 릴리즈 생성
+        if: startsWith(github.ref, 'refs/tags/tvos-v')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          TAG="${GITHUB_REF#refs/tags/}"
+          cat > notes.md <<'NOTES'
+          ## MeloNX for tvOS — 비공식 포팅
+
+          **TrollStore 전용입니다.** 정식 서명으로는 설치해도 동작하지 않습니다.
+
+          ### 요구사항
+          - Apple TV 4K, **tvOS 14.0 – 16.6** (TrollStore 지원 상한)
+          - TrollStore 설치 완료
+          - Extended Gamepad 프로파일 컨트롤러 (8BitDo 등)
+
+          ### 설치
+          `MeloNX.tipa` 를 TrollStore 로 설치하세요.
+          엔타이틀먼트(`dynamic-codesigning`, `increased-memory-limit`,
+          `extended-virtual-addressing`, `private.memorystatus`)는 바이너리
+          서명에 포함되어 있어 TrollStore 가 그대로 보존합니다.
+
+          ### 알려진 제약
+          - **메모리** — Apple TV 4K 3세대는 RAM 4GB(iPhone 12/13급)입니다.
+            경량·2D 타이틀은 동작하고 대형 3D 타이틀은 OOM이 예상됩니다.
+          - **RamDonor 비활성** — `com.apple.ar.viewer` 익스텐션 포인트가
+            tvOS에 없습니다. `memorystatus_control` 경로로 대체합니다.
+          - **파일 반입** — 문서 피커 대신 자체 파일 브라우저를 씁니다.
+            ROM은 `/var/mobile/Media` 등에 두고 설정에서 폴더를 추가하세요.
+          - 화면 회전·햅틱·대체 아이콘·사진 라이브러리 기능은 tvOS에서
+            동작하지 않습니다 (무해한 무동작 처리).
+
+          ### 라이선스
+          원본 MeloNX / Ryujinx 의 라이선스를 따릅니다 (`LICENSE.txt`).
+          NOTES
+          gh release create "$TAG" \
+            --title "MeloNX tvOS $TAG" \
+            --notes-file notes.md \
+            dist/MeloNX.tipa dist/MeloNX.ipa
