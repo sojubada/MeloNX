@@ -28,11 +28,25 @@ set -euo pipefail
 
 TVOS_MIN=16.0
 ARCH=arm64
+# MoltenVK 버전. 러너의 Xcode 16.4 와 빌드되는 것이 우선이라 v1.3.0 을 쓴다.
+# (구버전은 최신 Xcode 에서 자체 컴파일 에러가 날 수 있다)
+# 교체: MOLTENVK_TAG=v1.4.2 ./build-deps.sh moltenvk
+MOLTENVK_TAG="${MOLTENVK_TAG:-v1.3.0}"
+# SDL 은 릴리즈 태그에 3.5.0 이 없다(최신 안정판 3.4.x). 아래 주석 참고.
+SDL_REF="${SDL_REF:-main}"
+FFMPEG_TAG="${FFMPEG_TAG:-n6.1.2}"
 
-ROOT="$(cd "$(dirname "$0")" && pwd)"
-SRC="$ROOT/src"
-OUT="$ROOT/out/tvos"
+# 스크립트는 tvos/scripts/ 에 있다. 리포지토리 루트는 두 단계 위다.
+# 산출물 경로는 워크플로의 캐시 키와 project-tvos.yml 의 링크 경로와
+# 반드시 일치해야 한다: tvos/deps/out/tvos
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+SRC="$ROOT/tvos/deps/src"
+OUT="$ROOT/tvos/deps/out/tvos"
 mkdir -p "$SRC" "$OUT"
+
+# 없는 리포지토리를 클론하려 할 때 자격증명 프롬프트에서 멈추지 않고
+# 즉시 실패하게 한다 (CI에서 "could not read Username" 로 죽는 것 방지).
+export GIT_TERMINAL_PROMPT=0
 
 TVOS_SDK="$(xcrun --sdk appletvos --show-sdk-path)"
 
@@ -62,9 +76,16 @@ build_moltenvk() {
   check_tvos_sdk
   local dir="$SRC/MoltenVK"
 
+  # 주의: 원래는 Ryujinx 포크(github.com/Ryujinx/MoltenVK)를 쓰려 했으나
+  # Nintendo 합의 이후 그 GitHub 조직이 내려가서 더 이상 존재하지 않는다.
+  # (확인: git ls-remote 접근 불가). 따라서 업스트림을 쓴다.
+  # 업스트림도 tvOS를 공식 지원하지만, MeloNX가 번들했던 dylib과
+  # 동작이 다를 수 있다. 렌더링 이상이 보이면 이 지점을 의심할 것.
   if [ ! -d "$dir" ]; then
-    log "Ryujinx/MoltenVK 포크 클론"
-    git clone --depth 1 https://github.com/Ryujinx/MoltenVK.git "$dir"
+    log "KhronosGroup/MoltenVK $MOLTENVK_TAG 클론 (업스트림)"
+    git clone --depth 1 --branch "$MOLTENVK_TAG" \
+      https://github.com/KhronosGroup/MoltenVK.git "$dir" \
+      || die "MoltenVK 클론 실패 ($MOLTENVK_TAG)"
   fi
 
   cd "$dir"
@@ -128,14 +149,24 @@ build_moltenvk() {
 build_sdl3() {
   check_tvos_sdk
   local dir="$SRC/SDL"
-  local tag="release-3.5.0"
 
+  # MeloNX가 번들한 SDL3 바이너리는 버전 문자열이 "SDL-3.5.0" 이다.
+  # 그런데 libsdl-org/SDL 의 릴리즈 태그는 3.4.x 까지만 있다 — 즉 3.5.0 은
+  # main 브랜치의 개발 버전이다. C# 바인딩(ppy.SDL3-CS 2026.320.0)과 ABI를
+  # 맞춰야 하므로 안정 태그가 아니라 main 을 쓴다.
+  # 특정 커밋으로 고정하려면: SDL_REF=<커밋해시> ./build-deps.sh sdl3
   if [ ! -d "$dir" ]; then
-    log "SDL $tag 클론"
-    git clone --depth 1 --branch "$tag" https://github.com/libsdl-org/SDL.git "$dir" \
-      || { warn "$tag 태그 클론 실패 — main 으로 받습니다 (버전 차이 주의)"
-           git clone --depth 1 https://github.com/libsdl-org/SDL.git "$dir"; }
+    log "libsdl-org/SDL $SDL_REF 클론"
+    if [ "$SDL_REF" = "main" ]; then
+      git clone --depth 1 https://github.com/libsdl-org/SDL.git "$dir" \
+        || die "SDL 클론 실패"
+    else
+      git clone https://github.com/libsdl-org/SDL.git "$dir" || die "SDL 클론 실패"
+      ( cd "$dir" && git checkout -q "$SDL_REF" ) || die "SDL ref 체크아웃 실패: $SDL_REF"
+    fi
   fi
+  log "SDL 버전: $(grep -hoE 'SDL_M(AJOR|INOR|MICRO)_VERSION[[:space:]]+[0-9]+' \
+      "$dir/include/SDL3/SDL_version.h" 2>/dev/null | awk '{print $2}' | paste -sd. - || echo '?')"
 
   cd "$dir"
   rm -rf build-tvos
@@ -176,7 +207,7 @@ build_sdl3() {
 build_ffmpeg() {
   check_tvos_sdk
   local dir="$SRC/FFmpeg"
-  local tag="n6.1.2"      # 번들된 것이 6.x 계열
+  local tag="$FFMPEG_TAG"   # 번들된 것이 6.x 계열
 
   if [ ! -d "$dir" ]; then
     log "FFmpeg $tag 클론"
