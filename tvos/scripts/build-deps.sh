@@ -98,13 +98,45 @@ build_moltenvk() {
   log "make tvos"
   make tvos
 
-  # 산출물 위치는 MoltenVK 버전에 따라 조금씩 다르다. 찾아서 복사한다.
-  local dylib
-  dylib="$(find Package/Release/MoltenVK -name 'libMoltenVK.dylib' -path '*tvOS*' | head -1 || true)"
-  [ -n "$dylib" ] || dylib="$(find . -name 'libMoltenVK.dylib' -path '*tvOS*' | head -1 || true)"
-  [ -n "$dylib" ] || die "libMoltenVK.dylib(tvOS)을 찾지 못했습니다. Package/Release 아래를 직접 확인하세요."
+  # 산출물 위치와 형태는 MoltenVK 버전에 따라 다르다.
+  #   구버전  Package/Release/MoltenVK/dynamic/dylib/tvOS/libMoltenVK.dylib
+  #   v1.3.x  Package/Release/MoltenVK/MoltenVK.xcframework/tvos-arm64/
+  #             MoltenVK.framework/MoltenVK   ← 프레임워크 안의 바이너리
+  #
+  # MeloNX 는 [LibraryImport("libMoltenVK.dylib")] 로 파일명으로 로드하므로
+  # 어느 형태든 libMoltenVK.dylib 라는 이름의 동적 라이브러리로 만들어 둔다.
+  log "MoltenVK 산출물 탐색"
+  local dylib=""
+  local cand
+  while IFS= read -r cand; do
+    [ -f "$cand" ] || continue
+    # 정적 아카이브(.a)와 iOS 슬라이스를 걸러낸다
+    case "$(file -b "$cand" 2>/dev/null)" in
+      *"dynamically linked shared library"*|*"dynamic library"*) ;;
+      *) continue ;;
+    esac
+    if vtool -show-build "$cand" 2>/dev/null | grep -q "platform TVOS"; then
+      dylib="$cand"
+      break
+    fi
+  done < <(
+    find Package/Release -path '*tvOS*'     -name 'libMoltenVK.dylib' 2>/dev/null
+    find Package/Release -path '*tvos*'     -name 'MoltenVK'          -type f 2>/dev/null
+    find Package/Release -path '*tvOS*'     -name 'MoltenVK'          -type f 2>/dev/null
+    find Package      -name 'libMoltenVK.dylib' 2>/dev/null
+    find Package      -name 'MoltenVK' -type f 2>/dev/null
+  )
 
+  if [ -z "$dylib" ]; then
+    warn "tvOS용 MoltenVK 동적 라이브러리를 찾지 못했습니다. Package 아래 목록:"
+    find Package -maxdepth 6 \( -name 'MoltenVK' -o -name '*.dylib' -o -name '*.framework' \) \
+      2>/dev/null | head -40 | sed 's/^/    /'
+    die "위 목록에서 tvOS 슬라이스를 확인하고 스크립트의 탐색 경로를 맞추십시오."
+  fi
+
+  log "채택: ${dylib#./}"
   cp "$dylib" "$OUT/libMoltenVK.dylib"
+  chmod u+w "$OUT/libMoltenVK.dylib"
 
   # iOS 판과 같은 @rpath 설치 이름을 맞춘다 (Xcode가 Frameworks/ 에 임베드).
   install_name_tool -id @rpath/libMoltenVK.dylib "$OUT/libMoltenVK.dylib"
