@@ -94,10 +94,13 @@ jobs:
         run: ./tvos/scripts/prepare-packages.sh
 
       # ── 네이티브 의존성 (캐시) ───────────────────────────────────
+      # actions/cache 는 잡이 성공할 때만 저장한다. 이 포팅은 반복 수정이
+      # 전제라 그러면 매 실행마다 MoltenVK/SDL3/FFmpeg 를 20분씩 다시 빌드한다.
+      # restore 와 save 를 분리해 실패한 잡에서도 의존성을 보존한다.
       - name: 의존성 캐시 복원
         id: deps-cache
         if: ${{ inputs.rebuild_deps != true }}
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: tvos/deps/out
           key: tvos-deps-v${{ env.DEPS_CACHE_VERSION }}-${{ runner.os }}-${{ hashFiles('tvos/scripts/build-deps.sh') }}
@@ -124,6 +127,13 @@ jobs:
           echo "::warning::FFmpeg 빌드 실패 — 영상 디코딩(컷신) 없이 계속 진행합니다."
           echo "### FFmpeg 빌드 실패" >> "$GITHUB_STEP_SUMMARY"
           echo "Nvdec 영상 디코딩이 빠진 빌드가 만들어집니다. 에뮬레이션·렌더링·입력·오디오는 정상입니다." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: 의존성 캐시 저장
+        if: steps.deps-cache.outputs.cache-hit != 'true' && hashFiles('tvos/deps/out/tvos/libMoltenVK.dylib') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: tvos/deps/out
+          key: tvos-deps-v${{ env.DEPS_CACHE_VERSION }}-${{ runner.os }}-${{ hashFiles('tvos/scripts/build-deps.sh') }}
 
       - name: 의존성 산출물 확인
         run: |
