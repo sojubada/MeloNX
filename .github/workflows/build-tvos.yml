@@ -15,10 +15,16 @@ on:
         description: "Ignore the native dependency cache"
         type: boolean
         default: false
+      release_tag:
+        description: "Publish a release with this tag (e.g. tvos-v2.7.0). Empty = build only"
+        type: string
+        default: ""
   push:
     branches: [tvos-2.7]
     tags: ["tvos-v*"]
     paths-ignore: ["**.md"]
+  release:
+    types: [published]
 
 permissions:
   contents: write
@@ -247,11 +253,25 @@ jobs:
           path: dist/*
           retention-days: 30
 
+      # Three ways to publish, all started by the repository owner:
+      #   • Actions → Build tvOS (.tipa) → Run workflow, release_tag = tvos-vX.Y.Z
+      #   • push a tvos-v* tag
+      #   • Releases → Draft a new release (tag tvos-v…) → Publish
+      # A release that already exists just gets the files attached.
       - name: Release
-        if: startsWith(github.ref, 'refs/tags/tvos-v')
+        if: inputs.release_tag != '' || startsWith(github.ref, 'refs/tags/tvos-v') || github.event_name == 'release'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INPUT_TAG: ${{ inputs.release_tag }}
+          EVENT_TAG: ${{ github.event.release.tag_name }}
         run: |
-          TAG="${GITHUB_REF#refs/tags/}"
-          gh release create "$TAG" --title "MeloNX for Apple TV $TAG" \
-            --notes-file tvos/RELEASE_NOTES.md dist/MeloNX.tipa dist/MeloNX.ipa
+          set -e
+          TAG="${INPUT_TAG:-${EVENT_TAG:-${GITHUB_REF#refs/tags/}}}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            [ -n "$(gh release view "$TAG" --json body -q .body)" ] || gh release edit "$TAG" --notes-file tvos/RELEASE_NOTES.md
+            gh release upload "$TAG" dist/MeloNX.tipa dist/MeloNX.ipa --clobber
+          else
+            gh release create "$TAG" --target "$GITHUB_SHA" --title "MeloNX for Apple TV $TAG" \
+              --notes-file tvos/RELEASE_NOTES.md dist/MeloNX.tipa dist/MeloNX.ipa
+          fi
+          echo "Release: $(gh release view "$TAG" --json url -q .url)" >> "$GITHUB_STEP_SUMMARY"
