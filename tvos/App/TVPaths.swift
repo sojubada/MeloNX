@@ -21,7 +21,14 @@
 import Foundation
 
 enum TVPaths {
-    /// Resolved once at launch by `prepare()`.
+    /// The app container's Documents. tvOS lets a file browser (Argo) write here
+    /// but may refuse writes from the app itself, so it is treated as input only:
+    /// games, prod.keys / title.keys and firmware .zip can go anywhere inside it.
+    static let documents: URL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
+        ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Documents")
+
+    /// Emulator data root (keys copy, firmware, saves, logs). Documents when the app
+    /// can write it, otherwise Library/Caches/MeloNX. Resolved by `prepare()`.
     private(set) static var root: URL = FileManager.default.temporaryDirectory
 
     static var roms: URL { root.appendingPathComponent("roms", isDirectory: true) }
@@ -30,20 +37,21 @@ enum TVPaths {
     static var logs: URL { root.appendingPathComponent("Logs", isDirectory: true) }
     static var prodKeys: URL { keys.appendingPathComponent("prod.keys") }
 
-    /// Picks a writable data root, creates the folders the user fills in, opens
-    /// the launch log, and hands the root to the C# core (AppDataManager reads
-    /// MELONX_BASE_DIR). Runs first in didFinishLaunching, before SDL and the core.
+    /// Folders searched for games, keys and firmware.
+    static var inputDirs: [URL] {
+        var dirs = [documents]
+        if root.standardizedFileURL != documents.standardizedFileURL { dirs.append(root) }
+        return dirs
+    }
+
+    /// Runs first in didFinishLaunching, before SDL and the core.
     static func prepare() {
         let fm = FileManager.default
-        var candidates: [URL] = []
-        if let docs = fm.urls(for: .documentDirectory, in: .userDomainMask).first {
-            candidates.append(docs)
-        }
+        var candidates = [documents]
         if let caches = fm.urls(for: .cachesDirectory, in: .userDomainMask).first {
             candidates.append(caches.appendingPathComponent("MeloNX", isDirectory: true))
         }
         candidates.append(fm.temporaryDirectory.appendingPathComponent("MeloNX", isDirectory: true))
-
         root = candidates.first(where: isWritable) ?? candidates[candidates.count - 1]
 
         for dir in [roms, keys, firmware, logs] {
@@ -52,9 +60,50 @@ enum TVPaths {
 
         TVLog.open(logs)
         TVLog.write("---- launch \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] ?? "?") (\(Bundle.main.infoDictionary?["CFBundleVersion"] ?? "?")), \(ProcessInfo.processInfo.operatingSystemVersionString)")
+        TVLog.write("documents: \(documents.path) (app can write: \(root.standardizedFileURL == documents.standardizedFileURL))")
         TVLog.write("data root: \(root.path)")
 
+        importKeys()
         setenv("MELONX_BASE_DIR", root.path, 1)
+    }
+
+    /// Copies prod.keys / title.keys found anywhere under Documents into
+    /// <root>/system, where the core (AppDataManager.KeysDirPath) reads them.
+    static func importKeys() {
+        let fm = FileManager.default
+        for name in ["prod.keys", "title.keys"] {
+            guard let found = find(in: [documents], where: { $0.lastPathComponent.lowercased() == name }).first else { continue }
+            let dest = keys.appendingPathComponent(name)
+            if found.standardizedFileURL == dest.standardizedFileURL { continue }
+            try? fm.removeItem(at: dest)
+            do {
+                try fm.copyItem(at: found, to: dest)
+                TVLog.write("keys: copied \(found.path)")
+            } catch {
+                TVLog.write("keys: copy failed \(found.path): \(error.localizedDescription)")
+            }
+        }
+    }
+
+    /// Recursive search, skipping the emulator's own folders.
+    static func find(in dirs: [URL], where match: (URL) -> Bool) -> [URL] {
+        let skip: Set<String> = ["bis", "games", "profiles", "sdcard", "Logs", "mods", "config", "system"]
+        var result: [URL] = []
+        for dir in dirs {
+            guard let e = FileManager.default.enumerator(at: dir, includingPropertiesForKeys: [.isDirectoryKey],
+                                                         options: [.skipsHiddenFiles]) else { continue }
+            for case let url as URL in e {
+                if (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true {
+                    if dir.standardizedFileURL == root.standardizedFileURL && skip.contains(url.lastPathComponent)
+                        && url.deletingLastPathComponent().standardizedFileURL == root.standardizedFileURL {
+                        e.skipDescendants()
+                    }
+                    continue
+                }
+                if match(url) { result.append(url) }
+            }
+        }
+        return result
     }
 
     private static func isWritable(_ dir: URL) -> Bool {
@@ -75,24 +124,14 @@ enum TVPaths {
         FileManager.default.fileExists(atPath: prodKeys.path)
     }
 
-    /// The first firmware candidate in `firmware/`: a .zip, or the folder itself
-    /// when it holds extracted .nca files.
+    /// A firmware .zip anywhere in the input folders, or the extracted folder
+    /// <root>/firmware when it holds .nca files.
     static var firmwareCandidate: URL? {
-        let fm = FileManager.default
-        guard let items = try? fm.contentsOfDirectory(at: firmware, includingPropertiesForKeys: [.isDirectoryKey]) else {
-            return nil
-        }
-        if let zip = items.first(where: { $0.pathExtension.lowercased() == "zip" }) {
+        if let zip = find(in: inputDirs, where: { $0.pathExtension.lowercased() == "zip" }).first {
             return zip
         }
-        if items.contains(where: { $0.pathExtension.lowercased() == "nca" }) {
-            return firmware
-        }
-        // One sub-folder with the extracted firmware inside
-        return items.first(where: { url in
-            (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true &&
-            ((try? fm.contentsOfDirectory(atPath: url.path)) ?? []).contains(where: { $0.lowercased().hasSuffix(".nca") })
-        })
+        let ncas = (try? FileManager.default.contentsOfDirectory(atPath: firmware.path)) ?? []
+        return ncas.contains(where: { $0.lowercased().hasSuffix(".nca") }) ? firmware : nil
     }
 }
 

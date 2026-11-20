@@ -11,10 +11,10 @@
 ### 파일 넣는 곳 (파일 브라우저로 앱 컨테이너에 복사)
 | 무엇 | 위치 (`Documents/` 기준) |
 |---|---|
-| 게임 `.nsp` `.xci` `.nro` (하위 폴더 가능) | `roms/` |
-| `prod.keys` (`title.keys`) | `system/` |
-| 펌웨어 `.zip` 또는 압축 푼 폴더 | `firmware/` → 앱에서 "펌웨어 설치" |
-| 로그 | `Logs/tvos-app.log`(시작 단계), `Logs/stdout.log`(코어 출력) |
+| 게임 `.nsp` `.xci` `.nro` | 어디든 (하위 폴더 가능) |
+| `prod.keys` (`title.keys`) | 어디든 (앱이 자동 복사) |
+| 펌웨어 `.zip` | 어디든 → 앱에서 "펌웨어 설치" |
+| 로그 | 앱이 쓸 수 있는 곳(보통 `Library/Caches/MeloNX/Logs/`) — 홈 화면에 경로 표시 |
 
 본인 기기에서 덤프한 게임·키·펌웨어만 사용하세요.
 

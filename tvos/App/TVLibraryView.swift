@@ -86,7 +86,7 @@ struct TVLibraryView: View {
                 .disabled(installingFirmware)
             }
             Spacer()
-            Text(TVPaths.root.path)
+            Text(TVPaths.documents.path)
                 .font(.callout.monospaced())
                 .foregroundColor(.secondary)
         }
@@ -97,10 +97,10 @@ struct TVLibraryView: View {
             Text(emulator.loading ? "게임을 찾는 중…" : "게임이 없습니다")
                 .font(.title2.bold())
             Group {
-                Text("파일 브라우저로 아래 폴더에 복사한 뒤 새로고침을 누르세요.")
-                Text("게임 (.nsp .xci .nro)  →  \(TVPaths.roms.path)")
-                Text("prod.keys, title.keys  →  \(TVPaths.keys.path)")
-                Text("펌웨어 (.zip 또는 폴더)  →  \(TVPaths.firmware.path)")
+                Text("파일 브라우저로 게임(.nsp .xci .nro), prod.keys, 펌웨어 .zip을")
+                Text(TVPaths.documents.path)
+                Text("폴더 안 아무 곳에 복사한 뒤 새로고침을 누르세요.")
+                Text("로그: \(TVPaths.logs.path)")
             }
             .font(.title3)
             .foregroundColor(.secondary)

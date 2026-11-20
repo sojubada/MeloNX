@@ -35,7 +35,7 @@ enum TVLaunchBlock: Error, Equatable {
         case .noGamepad:
             return "확장 게임패드(8BitDo, Xbox, DualSense 등)가 연결되어야 게임을 시작합니다. Siri Remote로는 플레이할 수 없습니다.\n설정 → 리모컨 및 기기 → 블루투스에서 연결하세요."
         case .noKeys:
-            return "본인 기기에서 추출한 prod.keys를 다음 위치에 넣으세요.\n\(TVPaths.prodKeys.path)"
+            return "본인 기기에서 추출한 prod.keys를 다음 폴더 안에 넣고 새로고침하세요.\n\(TVPaths.documents.path)"
         case .alreadyRunning:
             return "실행 중인 게임을 먼저 종료하세요."
         }
@@ -69,6 +69,7 @@ final class TVEmulator: ObservableObject {
 
     func refresh() {
         loading = true
+        TVPaths.importKeys()
         Ryujinx.reloadKeySet()
         firmwareVersion = Ryujinx.installedFirmwareVersion
 
@@ -81,19 +82,18 @@ final class TVEmulator: ObservableObject {
         }
     }
 
-    /// Recursively finds supported files under roms/ (see GameFileType).
+    /// Game files anywhere in Documents (and the data root). Only container formats:
+    /// loose .nca files also exist inside the emulator's own bis/ folder.
     private static func scan() -> [GameInfo] {
-        let fm = FileManager.default
-        guard let enumerator = fm.enumerator(at: TVPaths.roms, includingPropertiesForKeys: nil,
-                                             options: [.skipsHiddenFiles]) else { return [] }
+        let exts: Set<String> = ["nsp", "xci", "nro"]
+        let files = TVPaths.find(in: TVPaths.inputDirs) { exts.contains($0.pathExtension.lowercased()) }
         var result: [GameInfo] = []
-        for case let url as URL in enumerator {
-            guard GameFileType.isSupported(fileExtension: url.pathExtension) else { continue }
+        for url in files {
             guard let handle = try? FileHandle(forReadingFrom: url) else { continue }
             defer { try? handle.close() }
-            let info = Ryujinx.getGameInfo(arg0: handle.fileDescriptor, arg1: url.pathExtension as NSString, path: url)
-            result.append(info)
+            result.append(Ryujinx.getGameInfo(arg0: handle.fileDescriptor, arg1: url.pathExtension as NSString, path: url))
         }
+        TVLog.write("scan: \(result.count) game(s)")
         return result.sorted { $0.titleName.localizedCaseInsensitiveCompare($1.titleName) == .orderedAscending }
     }
 
