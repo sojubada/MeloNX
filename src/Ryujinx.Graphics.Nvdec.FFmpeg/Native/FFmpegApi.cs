@@ -56,6 +56,44 @@ namespace Ryujinx.Graphics.Nvdec.FFmpeg.Native
             return false;
         }
 
+        /// <summary>
+        /// iOS/tvOS apps ship FFmpeg unversioned inside the bundle (Frameworks/libavcodec.dylib,
+        /// or libavcodec.framework on iOS), so the versioned names above are never found and the
+        /// default probing does not look in the bundle. Without this, the first in-game video
+        /// (Nvdec H.264/VP8) fails to load FFmpeg and the decoder throws.
+        /// </summary>
+        private static bool TryLoadBundledLibrary(string libraryName, out nint handle)
+        {
+            handle = nint.Zero;
+
+            if (!(OperatingSystem.IsIOS() || OperatingSystem.IsTvOS()))
+            {
+                return false;
+            }
+
+            string exeDir = System.IO.Path.GetDirectoryName(Environment.ProcessPath ?? AppContext.BaseDirectory) ?? AppContext.BaseDirectory;
+            string frameworks = System.IO.Path.Combine(exeDir, "Frameworks");
+
+            string[] candidates =
+            {
+                System.IO.Path.Combine(frameworks, $"lib{libraryName}.dylib"),
+                System.IO.Path.Combine(frameworks, $"lib{libraryName}.framework", $"lib{libraryName}"),
+                $"@rpath/lib{libraryName}.dylib",
+            };
+
+            foreach (string candidate in candidates)
+            {
+                if (NativeLibrary.TryLoad(candidate, out handle))
+                {
+                    Console.WriteLine($"FFmpeg: loaded {candidate}");
+                    return true;
+                }
+            }
+
+            Console.WriteLine($"FFmpeg: lib{libraryName} not found in {frameworks}; in-game video will not decode");
+            return false;
+        }
+
         static FFmpegApi()
         {
             NativeLibrary.SetDllImportResolver(typeof(FFmpegApi).Assembly, (name, assembly, path) =>
@@ -66,6 +104,10 @@ namespace Ryujinx.Graphics.Nvdec.FFmpeg.Native
                     return handle;
                 }
                 else if (name == AvCodecLibraryName && TryLoadWhitelistedLibrary(AvCodecLibraryName, assembly, path, out handle))
+                {
+                    return handle;
+                }
+                else if ((name == AvUtilLibraryName || name == AvCodecLibraryName) && TryLoadBundledLibrary(name, out handle))
                 {
                     return handle;
                 }
