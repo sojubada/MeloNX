@@ -5,7 +5,7 @@
 //  Full-screen game view.
 //
 //  The surface setup is MetalViewRepresentable.createView (UI/Emulation/Metal/
-//  MetalView.swift): an MTKView whose CAMetalLayer is handed to the core, which
+//  MetalView.swift): a CAMetalLayer view (TVMetalView) handed to the core, which
 //  renders into it through MoltenVK. Touch handling is gone (no touch screen).
 //
 //  GCEventViewController with controllerUserInteractionEnabled = false keeps
@@ -23,7 +23,7 @@ import Combine
 
 final class TVEmulationViewController: GCEventViewController {
     private let game: GameInfo
-    private var metalView: MTKView!
+    private var metalView: TVMetalView!
     private var started = false
     private var pauseMenuShown = false
     private var cancellables: Set<AnyCancellable> = []
@@ -38,12 +38,8 @@ final class TVEmulationViewController: GCEventViewController {
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
 
     override func loadView() {
-        let view = MTKView(frame: UIScreen.main.bounds, device: MTLCreateSystemDefaultDevice())
+        let view = TVMetalView(frame: UIScreen.main.bounds)
         view.backgroundColor = .black
-        view.framebufferOnly = false
-        // Render the swapchain at 1080p; the Apple TV scales the output to 4K.
-        // A 4K drawable would only cost GPU time for the final blit.
-        view.contentScaleFactor = 1.0
         metalView = view
         self.view = view
     }
@@ -52,13 +48,10 @@ final class TVEmulationViewController: GCEventViewController {
         super.viewDidLoad()
         controllerUserInteractionEnabled = false
 
-        guard let metalLayer = metalView.layer as? CAMetalLayer else {
-            fatalError("[MeloNX tvOS] MTKView layer is not a CAMetalLayer")
-        }
-        if metalLayer.device == nil {
-            metalLayer.device = MTLCreateSystemDefaultDevice()
-        }
-        metalLayer.contentsScale = 1.0
+        let metalLayer = metalView.metalLayer
+        metalLayer.device = MTLCreateSystemDefaultDevice()
+        metalLayer.framebufferOnly = false
+        metalView.pinScale()
 
         Ryujinx.setNativeWindow(Unmanaged.passUnretained(metalLayer).toOpaque())
 
@@ -177,5 +170,32 @@ final class TVEmulationViewController: GCEventViewController {
         let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: "확인", style: .default) { _ in completion() })
         present(alert, animated: true)
+    }
+}
+
+/// Plain CAMetalLayer view for the core's swapchain, held at 1080p.
+/// An MTKView was reset to the screen scale once on screen, and MoltenVK then
+/// built a 3840×2160 swapchain (device log), costing GPU memory and bandwidth
+/// on a 4 GB Apple TV. tvOS upscales the 1080p output to the TV.
+final class TVMetalView: UIView {
+    override class var layerClass: AnyClass { CAMetalLayer.self }
+
+    var metalLayer: CAMetalLayer { layer as! CAMetalLayer }
+
+    func pinScale() {
+        if contentScaleFactor != 1 { contentScaleFactor = 1 }
+        metalLayer.contentsScale = 1
+        let size = CGSize(width: max(bounds.width, 1), height: max(bounds.height, 1))
+        if metalLayer.drawableSize != size { metalLayer.drawableSize = size }
+    }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        pinScale()
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        pinScale()
     }
 }

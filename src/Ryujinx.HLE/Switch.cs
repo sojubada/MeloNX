@@ -128,7 +128,16 @@ namespace Ryujinx.HLE
 
             if (pressure != MemoryPressureLevel.Normal)
             {
-                Gpu.TrimCaches(pressure);
+                // Trimming is an optimisation: a failure while evicting a texture
+                // must not end the game (tvOS: NullReferenceException in the flush).
+                try
+                {
+                    Gpu.TrimCaches(pressure);
+                }
+                catch (Exception ex)
+                {
+                    Logger.Warning?.Print(LogClass.Gpu, $"Cache trim ({pressure}) failed and was skipped: {ex.GetType().Name}: {ex.Message}");
+                }
             }
 
             Gpu.ProcessShaderCacheQueue();

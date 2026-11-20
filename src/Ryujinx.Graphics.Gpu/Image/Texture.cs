@@ -1224,6 +1224,16 @@ namespace Ryujinx.Graphics.Gpu.Image
                 }
             }
 
+            if (data.Get().IsEmpty)
+            {
+                // The host could not read the texture back (seen on tvOS under memory
+                // pressure while trimming caches). Converting would dereference a null
+                // pointer and kill the process; leave the guest copy as it is.
+                Logger.Warning?.Print(LogClass.Gpu, $"Texture 0x{Info.GpuAddress:X} flush skipped: host returned no data");
+                data.Dispose();
+                return;
+            }
+
             ConvertFromHostCompatibleFormat(output, data.Get());
 
             data.Dispose();
@@ -1267,6 +1277,13 @@ namespace Ryujinx.Graphics.Gpu.Image
                 {
                     data = HostTexture.GetData(layer, level);
                 }
+            }
+
+            if (data.Get().IsEmpty)
+            {
+                Logger.Warning?.Print(LogClass.Gpu, $"Texture 0x{Info.GpuAddress:X} slice flush skipped: host returned no data");
+                data.Dispose();
+                return;
             }
 
             ConvertFromHostCompatibleFormat(output, data.Get(), level, true);
