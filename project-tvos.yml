@@ -96,6 +96,11 @@ targets:
         HEADER_SEARCH_PATHS:
           - "$(inherited)"
           - "$(SRCROOT)/src/MeloNX/MeloNX/Core"
+        # libMoltenVK / libavcodec / libavutil are linked as -l<name>, like the iOS target
+        LIBRARY_SEARCH_PATHS:
+          - "$(inherited)"
+          - "$(SRCROOT)/tvos/deps/out/tvos"
+          - "$(SRCROOT)/src/Ryujinx.Library/bin/Release/net10.0/tvos-arm64/native"
         CLANG_ENABLE_MODULES: YES
         ENABLE_USER_SCRIPT_SANDBOXING: NO
         LD_RUNPATH_SEARCH_PATHS:
