@@ -3,8 +3,7 @@
 <plist version="1.0">
 <dict>
 	<!-- MeloNX tvOS (TrollStore). No scene manifest: TVAppDelegate owns the window.
-	     No file sharing: the app runs outside the sandbox and reads
-	     /var/mobile/Media/MeloNX directly (see tvos/App/TVPaths.swift). -->
+	     Data lives in the app container's Documents/ (see tvos/App/TVPaths.swift). -->
 	<key>CFBundleDevelopmentRegion</key>
 	<string>ko</string>
 	<key>CFBundleExecutable</key>
@@ -34,8 +33,9 @@
 
 	<!-- Game controllers. ExtendedGamepad plays; MicroGamepad (Siri Remote) is
 	     declared so its Menu button reaches GameController and opens the pause
-	     menu instead of quitting the app. GCRequiresControllerUserInteraction
-	     makes tvOS ask for a game controller when the app starts. -->
+	     menu instead of quitting the app. A game pad is required to start a game;
+	     the app checks that itself (TVEmulator.launchBlock), so the menus still
+	     work with the Siri Remote alone. -->
 	<key>GCSupportedGameControllers</key>
 	<array>
 		<dict>
@@ -48,8 +48,6 @@
 		</dict>
 	</array>
 	<key>GCSupportsControllerUserInteraction</key>
-	<true/>
-	<key>GCRequiresControllerUserInteraction</key>
 	<true/>
 </dict>
 </plist>

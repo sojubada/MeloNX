@@ -19,24 +19,32 @@ final class TVAppDelegate: UIResponder, UIApplicationDelegate {
 
     func application(_ application: UIApplication,
                      didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
+        // First: data root + launch log, so every later step leaves a trace.
+        TVPaths.prepare()                  // also sets MELONX_BASE_DIR for the core
+
+        TVLog.write("step: SDL")
         SDL_SetMainReady()
         SDL_SetiOSEventPump(true)          // SDL's "iOS" API covers tvOS as well
         _ = SDL_Init(SDL_INIT_EVENTS)
 
-        TVPaths.prepare()                  // sets MELONX_BASE_DIR; must precede initialize()
+        TVLog.write("step: memory")
         TVMemory.raiseJetsamLimit()
         Self.setEmulatorEnvironment()
         TVLog.write("JIT: entitlement \(TVJIT.hasEntitlement), RW→RX \(TVJIT.isAvailable ? "ok" : "failed")")
+
+        TVLog.write("step: core initialize")
         Ryujinx.initialize()
         TVLog.write("core initialized, firmware '\(Ryujinx.installedFirmwareVersion)', prod.keys \(TVPaths.hasProdKeys)")
-        Self.configureAudioSession()
 
+        TVLog.write("step: audio, controllers, UI")
+        Self.configureAudioSession()
         TVControllers.shared.start()
 
         let window = UIWindow(frame: UIScreen.main.bounds)
         window.rootViewController = TVRootViewController()
         window.makeKeyAndVisible()
         self.window = window
+        TVLog.write("launch complete")
         return true
     }
 

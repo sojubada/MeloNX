@@ -2,15 +2,12 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<!-- TrollStore only. A normal signature cannot carry these.
+	<!-- TrollStore only. Kept to what the emulator needs; the app stays in its own
+	     sandbox container like any other app (all data under Documents/).
 
 	     dynamic-codesigning
 	       JIT without a debugger: pages may flip RW -> RX. TVSystem.swift checks it
 	       first, exactly like Common/JITChecker.swift on iOS.
-
-	     platform-application, no-container, no-sandbox, skip-library-validation
-	       The set Argo (sojubada/argo) runs with on tvOS 16.6. Lets the app use the
-	       fixed data folder /var/mobile/Media/MeloNX that a file browser can fill.
 
 	     increased-memory-limit, extended-virtual-addressing
 	       The core reserves large guest address ranges (MeloNX README: both are
@@ -19,14 +16,6 @@
 	     private.memorystatus
 	       memorystatus_control to raise our own jetsam limit (TVMemory), in place
 	       of the iOS RamDonor AR extension that tvOS does not have. -->
-	<key>platform-application</key>
-	<true/>
-	<key>com.apple.private.security.no-container</key>
-	<true/>
-	<key>com.apple.private.security.no-sandbox</key>
-	<true/>
-	<key>com.apple.private.skip-library-validation</key>
-	<true/>
 	<key>dynamic-codesigning</key>
 	<true/>
 	<key>com.apple.developer.kernel.increased-memory-limit</key>

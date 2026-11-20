@@ -50,7 +50,7 @@ done < <(find "$WORK/$NAME.app/Frameworks" -type f \( -name "*.dylib" -o -perm -
 # Info.plist 가 tvos/Info-tvOS.plist 그대로인지 (생성기로 덮어써지지 않았는지)
 echo "==> Info.plist 확인"
 PL="$WORK/$NAME.app/Info.plist"
-for key in CFBundleIdentifier CFBundleShortVersionString CFBundleVersion GCSupportedGameControllers GCRequiresControllerUserInteraction UIDeviceFamily; do
+for key in CFBundleIdentifier CFBundleShortVersionString CFBundleVersion GCSupportedGameControllers UIDeviceFamily; do
   /usr/libexec/PlistBuddy -c "Print :$key" "$PL" >/dev/null 2>&1 \
     || { echo "[!] Info.plist 에 $key 가 없습니다" >&2; exit 1; }
 done

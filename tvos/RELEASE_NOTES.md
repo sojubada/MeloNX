@@ -5,21 +5,22 @@
 
 ### 설치
 1. `MeloNX.tipa`를 TrollStore로 설치합니다.
-2. 앱을 처음 실행하면 아래 폴더가 만들어집니다.
+2. 앱을 한 번 실행하면 앱 컨테이너의 `Documents` 안에 아래 폴더가 만들어집니다.
+   홈 화면 오른쪽 위에 전체 경로(`/var/mobile/Containers/Data/Application/<UUID>/Documents`)가 표시됩니다.
 
-### 파일 넣는 곳 (파일 브라우저로 복사)
-| 무엇 | 위치 |
+### 파일 넣는 곳 (파일 브라우저로 앱 컨테이너에 복사)
+| 무엇 | 위치 (`Documents/` 기준) |
 |---|---|
-| 게임 `.nsp` `.xci` `.nro` (하위 폴더 가능) | `/var/mobile/Media/MeloNX/roms/` |
-| `prod.keys` (`title.keys`) | `/var/mobile/Media/MeloNX/system/` |
-| 펌웨어 `.zip` 또는 압축 푼 폴더 | `/var/mobile/Media/MeloNX/firmware/` → 앱에서 "펌웨어 설치" |
-| 로그 | `/var/mobile/Media/MeloNX/Logs/` |
+| 게임 `.nsp` `.xci` `.nro` (하위 폴더 가능) | `roms/` |
+| `prod.keys` (`title.keys`) | `system/` |
+| 펌웨어 `.zip` 또는 압축 푼 폴더 | `firmware/` → 앱에서 "펌웨어 설치" |
+| 로그 | `Logs/tvos-app.log`(시작 단계), `Logs/stdout.log`(코어 출력) |
 
 본인 기기에서 덤프한 게임·키·펌웨어만 사용하세요.
 
 ### 동작
 - **JIT**: `dynamic-codesigning` 권한으로 앱 실행 즉시 켜집니다. StikDebug 등 외부 도구가 필요 없습니다.
-- **게임패드 필수**: 확장 게임패드(8BitDo, Xbox, DualSense 등)가 연결돼 있지 않으면 게임이 시작되지 않습니다. Siri Remote로는 메뉴만 조작합니다.
+- **게임패드 필수**: 확장 게임패드(8BitDo, Xbox, DualSense 등)가 연결돼 있지 않으면 게임이 시작되지 않습니다. 메뉴는 Siri Remote로도 조작됩니다.
 - **일시정지 / 종료**: Siri Remote의 Menu(＜) 버튼, 또는 게임패드 `−` `＋` `L` `R` 동시 입력 → 계속하기 / 게임 종료
 - 기본 설정은 MeloNX 기본값(Vulkan/MoltenVK, 휴대 모드 720p, 텍스처 재압축)입니다.
 
