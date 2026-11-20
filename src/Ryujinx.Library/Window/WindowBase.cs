@@ -444,6 +444,18 @@ namespace Ryujinx.Library
                            + (args.IsDocked ? "Docked mode set. Handheld is also invalid.\n\n" : "")
                            + "Please reconfigure Input now and then press OK.";
 
+            if (OperatingSystem.IsTvOS())
+            {
+                // ControllerApplet re-asks in a tight loop while this returns true and
+                // the request is not met. tvOS has no input settings screen to change
+                // the pads, so the game hung on its title screen writing this message
+                // millions of times (device log: 13M lines, 800 MB). Answer like the
+                // Switch's controller screen closed with B: the applet returns the pads
+                // that are connected and the game decides what to do.
+                Console.WriteLine($"Controller Applet: {playerCount} player(s) requested ({args.SupportedStyles}); returning the connected pads");
+                return false;
+            }
+
             return DisplayMessageDialog("Controller Applet", message);
         }
 
