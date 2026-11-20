@@ -78,15 +78,17 @@ final class TVControllers: ObservableObject {
         }
     }
 
-    /// Detach everything, then attach pads to players 1…n as Pro Controllers
+    /// Detach everything, then attach pads to players 1…n with the controller type
+    /// chosen in settings (Pro Controller by default)
     /// (the iOS default for every slot, see Options.controllerType1…8).
     func attachAll() {
         for pad in gamepads {
             Ryujinx.detachGamepad(pad.pointer)
         }
+        let type: ControllerType = pick(TVSettings.shared.values.player1Type, .proController)
         for (index, pad) in gamepads.prefix(8).enumerated() {
-            pad.controllerType = .proController
-            pad.attach(index, controllerType: .proController)
+            pad.controllerType = type
+            pad.attach(index, controllerType: type)
         }
     }
 

@@ -44,6 +44,7 @@ final class TVAppDelegate: UIResponder, UIApplicationDelegate {
         window.rootViewController = TVRootViewController()
         window.makeKeyAndVisible()
         self.window = window
+        TVMenuMusic.shared.start()
         TVLog.write("launch complete")
         return true
     }
@@ -106,7 +107,7 @@ final class TVAppDelegate: UIResponder, UIApplicationDelegate {
 final class TVRootViewController: UIHostingController<AnyView> {
     init() {
         super.init(rootView: AnyView(EmptyView()))
-        rootView = AnyView(TVLibraryView(launch: { [weak self] game in self?.present(game) }))
+        rootView = AnyView(TVHomeView(launch: { [weak self] game in self?.present(game) }))
     }
 
     @MainActor required dynamic init?(coder: NSCoder) { fatalError("init(coder:) is not used") }

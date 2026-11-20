@@ -149,11 +149,9 @@ final class TVEmulator: ObservableObject {
         if let block = launchBlock() { throw block }
 
         var options = Options(inputPath: game.fileURL.path)
+        TVSettings.shared.apply(to: &options)        // settings screen (TVSettingsView)
         options.memoryEnt = TVMemory.hasIncreasedLimitEntitlement
-        options.backendThreading = .on                // as RyujinxController.startGame
-        options.disableDockedMode = true              // handheld 720p: lighter for the Apple TV GPU
         options.resolveMultiplayerLanInterface()
-        options.loggingEnableError = true             // errors go to Logs/stdout.log
 
         TVControllers.shared.attachAll()
         TVMemory.raiseJetsamLimit("game start")

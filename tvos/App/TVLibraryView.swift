@@ -9,6 +9,20 @@
 import SwiftUI
 import UIKit
 
+/// Top tabs, as in the iOS app (Games / Settings).
+struct TVHomeView: View {
+    let launch: (GameInfo) -> Void
+
+    var body: some View {
+        TabView {
+            TVLibraryView(launch: launch)
+                .tabItem { Label("게임", systemImage: "gamecontroller") }
+            TVSettingsView()
+                .tabItem { Label("설정", systemImage: "gearshape") }
+        }
+    }
+}
+
 struct TVLibraryView: View {
     @ObservedObject private var emulator = TVEmulator.shared
     @ObservedObject private var controllers = TVControllers.shared
