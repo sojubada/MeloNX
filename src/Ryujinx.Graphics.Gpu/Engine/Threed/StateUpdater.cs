@@ -967,11 +967,29 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed
         }
 
         /// <summary>
+        /// Format of the placeholder attribute used when the attribute's vertex buffer is disabled,
+        /// matching the shader input type chosen for that attribute.
+        /// </summary>
+        private static Format DummyAttribFormat(VertexAttribType type, bool supportsScaledFormats)
+        {
+            return type switch
+            {
+                VertexAttribType.Sint => Format.R32G32B32A32Sint,
+                VertexAttribType.Uint => Format.R32G32B32A32Uint,
+                VertexAttribType.Sscaled when !supportsScaledFormats => Format.R32G32B32A32Sint,
+                VertexAttribType.Uscaled when !supportsScaledFormats => Format.R32G32B32A32Uint,
+                _ => Format.R32G32B32A32Float,
+            };
+        }
+
+        /// <summary>
         /// Updates host vertex attributes based on guest GPU state.
         /// </summary>
         private void UpdateVertexAttribState()
         {
             bool supportsScaledFormats = _context.Capabilities.SupportsScaledVertexFormats;
+            // Same rule as SpecializationStateUpdater.SetAttributeTypes (shader input types)
+            bool shaderSupportsScaledFormats = supportsScaledFormats && !ShaderCache.MayConvertVtgToCompute(ref _context.Capabilities);
             uint vbEnableMask = _vbEnableMask;
 
             Span<VertexAttribDescriptor> vertexAttribs = stackalloc VertexAttribDescriptor[Constants.TotalVertexAttribs];
@@ -986,7 +1004,12 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed
                 if ((vbEnableMask & (1u << bufferIndex)) == 0)
                 {
                     // Using a vertex buffer that doesn't exist is invalid, so let's use a dummy attribute for those cases.
-                    vertexAttribs[index] = new VertexAttribDescriptor(0, 0, true, Format.R32G32B32A32Float);
+                    // The dummy must have the same numeric type as the shader input, which is
+                    // specialised from this attribute's type (SpecializationStateUpdater.SetAttributeTypes):
+                    // Metal refuses to build the pipeline for a float attribute feeding an int4/uint4
+                    // input ("Cannot convert attribute from MTLAttributeFormatFloat to int4"), and
+                    // MoltenVK crashed on such pipelines on the Apple TV.
+                    vertexAttribs[index] = new VertexAttribDescriptor(0, 0, true, DummyAttribFormat(vertexAttrib.UnpackType(), shaderSupportsScaledFormats));
                     continue;
                 }
 

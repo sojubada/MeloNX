@@ -91,6 +91,28 @@ build_moltenvk() {
 
   cd "$dir"
 
+  # Patch: never dispatch a compute pipeline whose Metal state failed to compile.
+  # MVKComputePipeline::encode() skips setComputePipelineState when the pipeline
+  # is invalid, but MVKCmdDispatch still calls dispatchThreadgroups, and the
+  # Apple TV GPU driver (AGXMetalG14) then dereferences a null pipeline:
+  # device crash log, SIGSEGV addr 0x170 in MVKCmdDispatch::encode.
+  log "MoltenVK 패치: 잘못된 compute 파이프라인 dispatch 건너뛰기"
+  python3 - <<'PY'
+import sys
+p = "MoltenVK/MoltenVK/Commands/MVKCmdDispatch.mm"
+s = open(p).read()
+guard = "if (!pipeline || !pipeline->hasValidMTLPipelineStates()) { return; }"
+if guard not in s:
+    a = "\tauto* pipeline = cmdEncoder->getComputePipeline();\n"
+    assert s.count(a) == 1, "dispatch anchor"
+    s = s.replace(a, a + "\t" + guard + "\n")
+    b = "void MVKCmdDispatchIndirect::encode(MVKCommandEncoder* cmdEncoder) {\n    cmdEncoder->finalizeDispatchState();\t// Ensure all updated state has been submitted to Metal\n"
+    assert s.count(b) == 1, "indirect anchor"
+    s = s.replace(b, b + "    auto* pipeline = cmdEncoder->getComputePipeline();\n    " + guard + "\n")
+    open(p, "w").write(s)
+print("patched", p)
+PY
+
   # MoltenVK는 glslang / SPIRV-Cross / SPIRV-Tools 를 External 로 가져와
   # 플랫폼별로 같이 빌드한다. --tvos 를 꼭 붙여야 tvOS 슬라이스가 생긴다.
   log "fetchDependencies --tvos (수십 분 걸린다)"
