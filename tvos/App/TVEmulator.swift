@@ -31,7 +31,7 @@ enum TVLaunchBlock: Error, Equatable {
     var message: String {
         switch self {
         case .noJIT:
-            return "TrollStore로 설치한 MeloNX.tipa만 JIT 권한(dynamic-codesigning)을 가집니다. TrollStore에서 다시 설치하세요."
+            return "TrollStore 앱 목록에서 MeloNX를 고른 뒤 \"Open with JIT\"로 실행하세요.\n(홈 화면의 \"JIT 켜기\" 버튼은 TrollStore에 같은 요청을 보냅니다.)"
         case .noGamepad:
             return "확장 게임패드(8BitDo, Xbox, DualSense 등)가 연결되어야 게임을 시작합니다. Siri Remote로는 플레이할 수 없습니다.\n설정 → 리모컨 및 기기 → 블루투스에서 연결하세요."
         case .noKeys:

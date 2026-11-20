@@ -2,21 +2,23 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<!-- TrollStore only. Kept to what the emulator needs; the app stays in its own
-	     sandbox container like any other app (all data under Documents/).
+	<!-- TrollStore only.
 
-	     dynamic-codesigning
-	       JIT without a debugger: pages may flip RW -> RX. TVSystem.swift checks it
-	       first, exactly like Common/JITChecker.swift on iOS.
+	     NOT dynamic-codesigning: on A12+ with iOS/tvOS 15+ it (like
+	     com.apple.private.cs.debugger and com.apple.private.skip-library-validation)
+	     is banned and "apps signed with them will crash on launch" (TrollStore README).
+	     JIT comes from TrollStore attaching a debugger instead ("Open with JIT" or
+	     apple-magnifier://enable-jit), which sets CS_DEBUGGED - same as MeloNX on iPad.
+
+	     get-task-allow
+	       lets TrollStore attach to the process to turn JIT on.
 
 	     increased-memory-limit, extended-virtual-addressing
-	       The core reserves large guest address ranges (MeloNX README: both are
-	       required on 4 GB devices).
+	       the core reserves large guest address ranges.
 
 	     private.memorystatus
-	       memorystatus_control to raise our own jetsam limit (TVMemory), in place
-	       of the iOS RamDonor AR extension that tvOS does not have. -->
-	<key>dynamic-codesigning</key>
+	       memorystatus_control to raise our own jetsam limit (TVMemory). -->
+	<key>get-task-allow</key>
 	<true/>
 	<key>com.apple.developer.kernel.increased-memory-limit</key>
 	<true/>

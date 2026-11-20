@@ -30,7 +30,7 @@ final class TVAppDelegate: UIResponder, UIApplicationDelegate {
         TVLog.write("step: memory")
         TVMemory.raiseJetsamLimit()
         Self.setEmulatorEnvironment()
-        TVLog.write("JIT: entitlement \(TVJIT.hasEntitlement), RW→RX \(TVJIT.isAvailable ? "ok" : "failed")")
+        TVLog.write("JIT: debugged \(TVJIT.isDebugged), RW→RX \(TVJIT.isAvailable ? "ok" : "no")")
 
         TVLog.write("step: core initialize")
         Ryujinx.initialize()
@@ -46,6 +46,14 @@ final class TVAppDelegate: UIResponder, UIApplicationDelegate {
         self.window = window
         TVLog.write("launch complete")
         return true
+    }
+
+    /// Launched from the icon: no debugger yet, so ask TrollStore to attach
+    /// (the iPad "Open with JIT" step, done for the user). Rate limited in TVJIT.
+    func applicationDidBecomeActive(_ application: UIApplication) {
+        let ok = TVJIT.isAvailable
+        TVLog.write("active; JIT \(ok ? "on" : "off")")
+        if !ok { TVJIT.request(automatic: true) }
     }
 
     func applicationWillResignActive(_ application: UIApplication) {

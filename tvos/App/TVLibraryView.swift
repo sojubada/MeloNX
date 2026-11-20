@@ -42,6 +42,9 @@ struct TVLibraryView: View {
             .padding(.vertical, 60)
         }
         .onAppear { emulator.refresh() }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
+            emulator.refresh()      // JIT may have been turned on by TrollStore meanwhile
+        }
         .alert(item: $notice) { notice in
             Alert(title: Text(notice.title), message: Text(notice.message), dismissButton: .default(Text("확인")))
         }
@@ -75,6 +78,13 @@ struct TVLibraryView: View {
                 emulator.refresh()
             } label: {
                 Label("새로고침", systemImage: "arrow.clockwise")
+            }
+            if !TVJIT.isAvailable {
+                Button {
+                    TVJIT.request(automatic: false)
+                } label: {
+                    Label("JIT 켜기 (TrollStore)", systemImage: "bolt.fill")
+                }
             }
             if let firmware = TVPaths.firmwareCandidate, emulator.firmwareVersion.isEmpty || installingFirmware {
                 Button {

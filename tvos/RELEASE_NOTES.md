@@ -19,7 +19,11 @@
 본인 기기에서 덤프한 게임·키·펌웨어만 사용하세요.
 
 ### 동작
-- **JIT**: `dynamic-codesigning` 권한으로 앱 실행 즉시 켜집니다. StikDebug 등 외부 도구가 필요 없습니다.
+- **JIT**: iPad의 MeloNX와 같은 방식입니다. TrollStore가 디버거로 붙어야 켜집니다.
+  - 가장 확실한 방법: TrollStore 앱 목록에서 MeloNX 선택 → **Open with JIT**
+  - 아이콘으로 실행하면 앱이 TrollStore에 JIT를 자동 요청합니다(`apple-magnifier://enable-jit`). 홈 화면의 **JIT 켜기** 버튼도 같은 요청을 보냅니다.
+  - JIT가 없어도 앱은 열리고, 게임 시작만 막힙니다.
+  - (이전 빌드의 `dynamic-codesigning` 권한은 A12 이후 칩에서 금지된 권한이라 앱이 시작 전에 종료됐습니다. 제거했습니다.)
 - **게임패드 필수**: 확장 게임패드(8BitDo, Xbox, DualSense 등)가 연결돼 있지 않으면 게임이 시작되지 않습니다. 메뉴는 Siri Remote로도 조작됩니다.
 - **일시정지 / 종료**: Siri Remote의 Menu(＜) 버튼, 또는 게임패드 `−` `＋` `L` `R` 동시 입력 → 계속하기 / 게임 종료
 - 기본 설정은 MeloNX 기본값(Vulkan/MoltenVK, 휴대 모드 720p, 텍스처 재압축)입니다.

@@ -95,6 +95,10 @@ while IFS= read -r fw; do
 done < <(find "$WORK/$NAME.app/Frameworks" -maxdepth 1 -name "*.framework" 2>/dev/null || true)
 
 # 메인 바이너리에 엔타이틀먼트를 넣어 fake-sign
+# Banned for A12+ on iOS/tvOS 15+: TrollStore says apps signed with these crash on launch
+for banned in dynamic-codesigning com.apple.private.cs.debugger com.apple.private.skip-library-validation; do
+  if grep -q "<key>$banned</key>" "$ENTS"; then echo "error: banned entitlement $banned in $ENTS"; exit 1; fi
+done
 ldid -S"$ENTS" "$BIN"
 echo "==> 서명에 들어간 엔타이틀먼트"
 ldid -e "$BIN"

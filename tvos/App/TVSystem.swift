@@ -4,11 +4,12 @@
 //
 //  JIT and memory checks for the TrollStore build.
 //
-//  JIT: same test as Common/JITChecker.swift (`dynamic-codesigning` entitlement,
-//  then really flip a page RW → RX and read back its protection). The iOS file
-//  also probes TXM through IOKit for iOS 26; tvOS 16 predates TXM and its SDK has
-//  no IOKit headers, so that path is left out. With the entitlement there is no
-//  debugger, StikDebug or URL-scheme step: JIT is on as soon as the app starts.
+//  JIT: TrollStore cannot give a tvOS/iOS 15+ A12+ app `dynamic-codesigning`
+//  (banned: such apps crash on launch). Like MeloNX on iPad, JIT is turned on by
+//  TrollStore attaching to the process ("Open with JIT", or the URL scheme
+//  apple-magnifier://enable-jit?bundle-id=...), which sets CS_DEBUGGED. So the
+//  app starts without JIT, asks TrollStore for it, and only game start is gated.
+//  Check = Common/JITChecker.swift: CS_DEBUGGED via csops + a real RW -> RX flip.
 //
 //  Memory: the Switch has 4 GB of RAM. tvOS gives a foreground app a jetsam
 //  limit well below the Apple TV's physical RAM. `com.apple.private.memorystatus`
@@ -19,14 +20,48 @@
 import Foundation
 import Darwin
 import os
+import UIKit
 
 // MARK: - JIT
 
-enum TVJIT {
-    static var hasEntitlement: Bool { checkAppEntitlement("dynamic-codesigning") }
+@_silgen_name("csops")
+private func tv_csops(_ pid: Int32, _ ops: UInt32, _ useraddr: UnsafeMutableRawPointer?, _ usersize: Int) -> Int32
 
-    /// Cached: the answer cannot change while the process runs.
-    static let isAvailable: Bool = hasEntitlement && pageCanBecomeExecutable()
+enum TVJIT {
+    private static let CS_OPS_STATUS: UInt32 = 0
+    private static let CS_DEBUGGED: UInt32 = 0x10000000
+
+    /// A debugger (TrollStore) has attached at least once: code signing is relaxed.
+    static var isDebugged: Bool {
+        var flags: UInt32 = 0
+        return tv_csops(getpid(), CS_OPS_STATUS, &flags, MemoryLayout<UInt32>.size) == 0 && flags & CS_DEBUGGED != 0
+    }
+
+    /// Re-checked every time: TrollStore can enable JIT after launch.
+    static var isAvailable: Bool { isDebugged && pageCanBecomeExecutable() }
+
+    static var enableURL: URL {
+        URL(string: "apple-magnifier://enable-jit?bundle-id=\(Bundle.main.bundleIdentifier ?? "com.sojubada.melonx.tvos")")!
+    }
+
+    /// Ask TrollStore to attach (same URL as Common/JIT/EnableJIT.swift).
+    /// Automatic requests are rate limited so a TrollStore without the URL
+    /// scheme, or a failed attach, cannot bounce the app back and forth.
+    @MainActor
+    static func request(automatic: Bool) {
+        guard !isAvailable else { return }
+        let key = "tvJITLastRequest"
+        let now = Date().timeIntervalSince1970
+        if automatic, now - UserDefaults.standard.double(forKey: key) < 60 {
+            TVLog.write("JIT: automatic request skipped (asked < 60 s ago)")
+            return
+        }
+        UserDefaults.standard.set(now, forKey: key)
+        TVLog.write("JIT: asking TrollStore \(enableURL.absoluteString)")
+        UIApplication.shared.open(enableURL, options: [:]) { ok in
+            TVLog.write("JIT: open URL \(ok ? "accepted" : "refused (no TrollStore URL scheme?)")")
+        }
+    }
 
     private static func pageCanBecomeExecutable() -> Bool {
         let pageSize = Int(sysconf(_SC_PAGESIZE))

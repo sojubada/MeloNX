@@ -18,7 +18,7 @@ TV용 화면만 새로 씁니다.
 |---|---|
 | `TVAppDelegate.swift` | 시작 순서: SDL → 환경변수 → 데이터 경로 → `Ryujinx.initialize()` |
 | `TVPaths.swift` | 데이터 루트 = 앱 컨테이너 `Documents/` (iOS와 같은 `roms/`, `system/`), 시작 로그·stdout 기록 |
-| `TVSystem.swift` | JIT 판정(`dynamic-codesigning` + RW→RX 시험), jetsam 한도 상향 |
+| `TVSystem.swift` | JIT 판정(CS_DEBUGGED + RW→RX 시험), TrollStore에 JIT 요청, jetsam 한도 상향 |
 | `TVControllers.swift` | 확장 게임패드 목록, 플레이어 1… 연결 |
 | `TVEmulator.swift` | 게임 목록, 실행 조건(JIT·게임패드·키), 에뮬레이션 스레드 |
 | `TVEmulationViewController.swift` | 게임 화면(MTKView → CAMetalLayer), 일시정지 메뉴 |
