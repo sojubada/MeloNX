@@ -1,4 +1,4 @@
-// swift-tools-version: 5.5
+// swift-tools-version: 5.9
 //
 // tvOS subset of stossy11/Melo-Controller (GPL-3.0, commit b16a8e3).
 //
