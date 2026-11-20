@@ -30,7 +30,7 @@ namespace Ryujinx.Common.Logging.Targets
 
         public void Log(object sender, LogEventArgs args)
         {
-            if (OperatingSystem.IsIOS())    
+            if ((OperatingSystem.IsIOS() || OperatingSystem.IsTvOS()))    
                 Console.WriteLine(_formatter.Format(args));
             else
             {

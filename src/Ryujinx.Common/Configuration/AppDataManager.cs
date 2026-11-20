@@ -49,9 +49,14 @@ namespace Ryujinx.Common.Configuration
 
         public static void Initialize(string baseDirPath)
         {
-            if (OperatingSystem.IsIOS()) 
+            if ((OperatingSystem.IsIOS() || OperatingSystem.IsTvOS())) 
             {
-                BaseDirPath = Path.GetFullPath(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments));
+                // tvOS: the app picks a data root it can write (TrollStore no-sandbox build uses
+                // /var/mobile/Media/MeloNX) and hands it over before initialize().
+                string overrideDir = Environment.GetEnvironmentVariable("MELONX_BASE_DIR");
+                BaseDirPath = Path.GetFullPath(string.IsNullOrEmpty(overrideDir)
+                    ? Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments)
+                    : overrideDir);
                 Mode = LaunchMode.UserProfile;
 
                 if (IsPathSymlink(BaseDirPath))
@@ -151,7 +156,7 @@ namespace Ryujinx.Common.Configuration
             }
             else
             {
-                if (OperatingSystem.IsIOS())
+                if ((OperatingSystem.IsIOS() || OperatingSystem.IsTvOS()))
                 {
                     logDir = Path.Combine(BaseDirPath, "Logs");
 

@@ -11,7 +11,7 @@ namespace Ryujinx.Memory
         /// <summary>
         /// Whether freed guest physical pages should be decommitted from the backing DRAM block.
         /// </summary>
-        public static bool GuestPhysicalEnabled { get; set; } = OperatingSystem.IsIOS();
+        public static bool GuestPhysicalEnabled { get; set; } = (OperatingSystem.IsIOS() || OperatingSystem.IsTvOS());
 
         /// <summary>
         /// Smallest DRAM range worth decommitting. Decommitting costs a couple of syscalls and
@@ -23,7 +23,7 @@ namespace Ryujinx.Memory
         /// <summary>
         /// Whether free ranges inside partially used private allocator blocks should be discarded.
         /// </summary>
-        public static bool PrivateAllocatorEnabled { get; set; } = OperatingSystem.IsIOS();
+        public static bool PrivateAllocatorEnabled { get; set; } = (OperatingSystem.IsIOS() || OperatingSystem.IsTvOS());
 
         /// <summary>
         /// Smallest private allocator range worth discarding. Defaults to a single host page:

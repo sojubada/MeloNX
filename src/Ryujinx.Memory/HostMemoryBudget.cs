@@ -23,13 +23,13 @@ namespace Ryujinx.Memory
         private const int PhysFootprintIndex = 144 / 8;
 
         private static long _cachedTotalBytes = -1;
-        public static bool IsConstrained => OperatingSystem.IsIOS();
+        public static bool IsConstrained => (OperatingSystem.IsIOS() || OperatingSystem.IsTvOS());
         
         public static ulong AvailableBytes
         {
             get
             {
-                if (!OperatingSystem.IsIOS())
+                if (!(OperatingSystem.IsIOS() || OperatingSystem.IsTvOS()))
                 {
                     return 0;
                 }
@@ -52,7 +52,7 @@ namespace Ryujinx.Memory
         {
             get
             {
-                if (!OperatingSystem.IsMacOS() && !OperatingSystem.IsIOS())
+                if (!OperatingSystem.IsMacOS() && !(OperatingSystem.IsIOS() || OperatingSystem.IsTvOS()))
                 {
                     return 0;
                 }

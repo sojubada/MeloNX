@@ -284,7 +284,7 @@ namespace Ryujinx.HLE.HOS.Services.Sockets.Bsd.Impl
 
         public static LinuxError ConvertError(WsaError errorCode)
         {
-            if (OperatingSystem.IsMacOS() || OperatingSystem.IsIOS())
+            if (OperatingSystem.IsMacOS() || (OperatingSystem.IsIOS() || OperatingSystem.IsTvOS()))
             {
                 if (_errorMapMacOs.TryGetValue((int)errorCode, out LinuxError errno))
                 {

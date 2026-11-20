@@ -85,7 +85,7 @@ namespace Ryujinx.Graphics.Gpu.Image
         /// <param name="cpuMemorySize">The amount of physical CPU Memory Avaiable on the device.</param>
         public void Initialize(GpuContext context, ulong cpuMemorySize)
         {
-            bool isAppleUnifiedMemory = (OperatingSystem.IsIOS() || OperatingSystem.IsMacOS()) &&
+            bool isAppleUnifiedMemory = ((OperatingSystem.IsIOS() || OperatingSystem.IsTvOS()) || OperatingSystem.IsMacOS()) &&
                                         context.Capabilities.MemoryType == SystemMemoryType.UnifiedMemory;
 
             if (isAppleUnifiedMemory)

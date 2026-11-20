@@ -945,7 +945,7 @@ namespace Ryujinx.Library
 
             };
 
-            if (OperatingSystem.IsMacOS() || OperatingSystem.IsIOS())
+            if (OperatingSystem.IsMacOS() || (OperatingSystem.IsIOS() || OperatingSystem.IsTvOS()))
             {
                 if (option.GraphicsBackend == GraphicsBackend.OpenGl)
                 {
@@ -1018,7 +1018,7 @@ namespace Ryujinx.Library
             bool appleHV;
             if (!OperatingSystem.IsIOSVersionAtLeast(16, 4) && options.UseHypervisor)
                 appleHV = true;
-            else if (OperatingSystem.IsIOS())
+            else if ((OperatingSystem.IsIOS() || OperatingSystem.IsTvOS()))
                 appleHV = false;
             else
                 appleHV = options.UseHypervisor;

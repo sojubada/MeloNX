@@ -40,7 +40,7 @@ namespace Ryujinx.Cpu.LightningJit
     class Translator : IDisposable
     {
         // Should be enabled on platforms that enforce W^X.
-        private static bool IsNoWxPlatform => OperatingSystem.IsIOS();
+        private static bool IsNoWxPlatform => (OperatingSystem.IsIOS() || OperatingSystem.IsTvOS());
 
         private readonly ConcurrentQueue<KeyValuePair<ulong, TranslatedFunction>> _oldFuncs;
         private readonly NoWxCache _noWxCache;

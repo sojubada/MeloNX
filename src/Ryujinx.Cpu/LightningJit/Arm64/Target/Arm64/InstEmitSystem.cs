@@ -130,7 +130,7 @@ namespace Ryujinx.Cpu.LightningJit.Arm64.Target.Arm64
         private static bool IsCtrEl0AccessForbidden()
         {
             // Only Linux allows accessing CTR_EL0 from user mode.
-            return OperatingSystem.IsWindows() || OperatingSystem.IsMacOS() || OperatingSystem.IsIOS();
+            return OperatingSystem.IsWindows() || OperatingSystem.IsMacOS() || (OperatingSystem.IsIOS() || OperatingSystem.IsTvOS());
         }
 
         public static bool IsCacheInstForbidden(uint encoding)

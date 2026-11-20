@@ -71,7 +71,7 @@ namespace ARMeilleure.Translation.Cache
                 CacheMemoryAllocator firstCacheAllocator = new(CacheSize);
                 _cacheAllocators.Add(firstCacheAllocator);
 
-                if (!OperatingSystem.IsWindows() && !OperatingSystem.IsMacOS() && !OperatingSystem.IsIOS())
+                if (!OperatingSystem.IsWindows() && !OperatingSystem.IsMacOS() && !(OperatingSystem.IsIOS() || OperatingSystem.IsTvOS()))
                 {
                     _jitCacheInvalidator = new JitCacheInvalidation(allocator);
                 }

@@ -321,7 +321,7 @@ namespace Ryujinx.HLE.HOS.Services.Ldn.UserServiceCreator.LdnMitm
                 // NOTE: Linux won't receive any broadcast packets if the socket is not bound to the broadcast address.
                 //       Windows only works if bound to localhost or the local address.
                 //       See this discussion: https://stackoverflow.com/questions/13666789/receiving-udp-broadcast-packets-on-linux
-                if (OperatingSystem.IsLinux() || OperatingSystem.IsMacOS() || OperatingSystem.IsIOS())
+                if (OperatingSystem.IsLinux() || OperatingSystem.IsMacOS() || (OperatingSystem.IsIOS() || OperatingSystem.IsTvOS()))
                 {
                     _udp2 = new LdnProxyUdpServer(_protocol, LocalBroadcastAddr, DefaultPort);
                 }

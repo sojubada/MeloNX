@@ -116,7 +116,7 @@ namespace Ryujinx.HLE.Loaders.Processes.Extensions
             if (File.Exists(titleUpdateMetadataPath))
             {
                 updatePath = JsonHelper.DeserializeFromFile(titleUpdateMetadataPath, _applicationSerializerContext.TitleUpdateMetadata).Selected;
-                if (OperatingSystem.IsIOS())
+                if ((OperatingSystem.IsIOS() || OperatingSystem.IsTvOS()))
                     updatePath = Path.Combine(AppDataManager.BaseDirPath, updatePath);
 
                 if (File.Exists(updatePath))

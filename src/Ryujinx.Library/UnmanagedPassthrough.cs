@@ -98,7 +98,7 @@ namespace Ryujinx.Library
         [UnmanagedCallersOnly(EntryPoint = "offer_donated_memory")]
         public static void OfferDonatedMemory(nint baseAddress, ulong size)
         {
-            if (!OperatingSystem.IsIOS())
+            if (!(OperatingSystem.IsIOS() || OperatingSystem.IsTvOS()))
             {
                 return;
             }
@@ -119,7 +119,7 @@ namespace Ryujinx.Library
         [UnmanagedCallersOnly(EntryPoint = "withdraw_donated_memory")]
         public static void WithdrawDonatedMemory()
         {
-            if (OperatingSystem.IsIOS())
+            if ((OperatingSystem.IsIOS() || OperatingSystem.IsTvOS()))
             {
                 DonatedMemory.Withdraw();
             }
@@ -128,7 +128,7 @@ namespace Ryujinx.Library
         [UnmanagedCallersOnly(EntryPoint = "offer_donated_gpu_memory")]
         public static byte OfferDonatedGpuMemory(nint address, ulong size)
         {
-            return (byte)(OperatingSystem.IsIOS() && DonatedBufferMemory.Offer(address, size) ? 1 : 0);
+            return (byte)((OperatingSystem.IsIOS() || OperatingSystem.IsTvOS()) && DonatedBufferMemory.Offer(address, size) ? 1 : 0);
         }
 
         [UnmanagedCallersOnly(EntryPoint = "withdraw_donated_gpu_memory")]

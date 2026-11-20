@@ -34,7 +34,7 @@ namespace Ryujinx.Graphics.Vulkan
             _allocator = allocator;
             _hostApi = hostApi;
 
-            if (!OperatingSystem.IsIOS() || hostApi == null || !DonatedBufferMemory.TryClaim(out nint pointer, out ulong size))
+            if (!(OperatingSystem.IsIOS() || OperatingSystem.IsTvOS()) || hostApi == null || !DonatedBufferMemory.TryClaim(out nint pointer, out ulong size))
             {
                 _disabled = true;
                 return;

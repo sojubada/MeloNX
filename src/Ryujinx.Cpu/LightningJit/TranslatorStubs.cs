@@ -382,7 +382,7 @@ namespace Ryujinx.Cpu.LightningJit
             {
                 return _noWxCache.MapPageAligned(code);
             }
-            if (_dualMappedNoWxCache != null && OperatingSystem.IsIOS())
+            if (_dualMappedNoWxCache != null && (OperatingSystem.IsIOS() || OperatingSystem.IsTvOS()))
             {
                 return _dualMappedNoWxCache.MapPageAligned(code);
             }

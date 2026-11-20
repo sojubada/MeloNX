@@ -2,18 +2,15 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<!-- iOS 판에서 제거한 키
-	     · UIFileSharingEnabled        : tvOS에 iTunes 파일공유가 없다
-	     · UISupportsDocumentBrowser   : tvOS에 문서 브라우저가 없다
-	     · UIApplicationSceneManifest  : 외부 디스플레이 씬 역할이 무의미
-	     · UIApplicationSupportsIndirectInputEvents / 방향 키
-	     TrollStore 설치본은 샌드박스 밖을 직접 읽으므로 파일공유가 필요 없다.
-	     ROM 반입은 Compat/TVFileBrowser.swift 가 담당한다. -->
-
+	<!-- MeloNX tvOS (TrollStore). No scene manifest: TVAppDelegate owns the window.
+	     No file sharing: the app runs outside the sandbox and reads
+	     /var/mobile/Media/MeloNX directly (see tvos/App/TVPaths.swift). -->
+	<key>CFBundleDevelopmentRegion</key>
+	<string>ko</string>
 	<key>CFBundleExecutable</key>
 	<string>MeloNX</string>
 	<key>CFBundleIdentifier</key>
-	<string>com.stossy11.MeloNX</string>
+	<string>com.sojubada.melonx.tvos</string>
 	<key>CFBundleName</key>
 	<string>MeloNX</string>
 	<key>CFBundleDisplayName</key>
@@ -23,82 +20,36 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleShortVersionString</key>
-	<string>1.0</string>
+	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
-	<string>1</string>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UIRequiredDeviceCapabilities</key>
 	<array>
 		<string>arm64</string>
 	</array>
+	<key>UIUserInterfaceStyle</key>
+	<string>Dark</string>
 
-	<!-- 게임 컨트롤러. 8BitDo 를 포함한 Extended Gamepad 프로파일 기기.
-	     코드는 iOS 판과 동일하게 GameController + SDL3 양쪽 경로를 쓴다. -->
+	<!-- Game controllers. ExtendedGamepad plays; MicroGamepad (Siri Remote) is
+	     declared so its Menu button reaches GameController and opens the pause
+	     menu instead of quitting the app. GCRequiresControllerUserInteraction
+	     makes tvOS ask for a game controller when the app starts. -->
 	<key>GCSupportedGameControllers</key>
 	<array>
 		<dict>
 			<key>ProfileName</key>
 			<string>ExtendedGamepad</string>
 		</dict>
+		<dict>
+			<key>ProfileName</key>
+			<string>MicroGamepad</string>
+		</dict>
 	</array>
+	<key>GCSupportsControllerUserInteraction</key>
+	<true/>
 	<key>GCRequiresControllerUserInteraction</key>
 	<true/>
-
-	<!-- JIT 제공자 호출용 URL 스킴. TrollStore 설치본에서는
-	     dynamic-codesigning 이 직접 붙으므로 실제로는 쓰이지 않는다. -->
-	<key>CFBundleURLTypes</key>
-	<array>
-		<dict>
-			<key>CFBundleTypeRole</key>
-			<string>Editor</string>
-			<key>CFBundleURLName</key>
-			<string>com.stossy11.MeloNX</string>
-			<key>CFBundleURLSchemes</key>
-			<array>
-				<string>melonx</string>
-			</array>
-		</dict>
-	</array>
-
-	<key>UTExportedTypeDeclarations</key>
-	<array>
-		<dict>
-			<key>UTTypeConformsTo</key>
-			<array>
-				<string>public.data</string>
-				<string>public.archive</string>
-			</array>
-			<key>UTTypeDescription</key>
-			<string>Nintendo Switch Package</string>
-			<key>UTTypeIdentifier</key>
-			<string>com.nintendo.switch-package</string>
-			<key>UTTypeTagSpecification</key>
-			<dict>
-				<key>public.filename-extension</key>
-				<array>
-					<string>nsp</string>
-				</array>
-			</dict>
-		</dict>
-		<dict>
-			<key>UTTypeConformsTo</key>
-			<array>
-				<string>public.data</string>
-				<string>public.archive</string>
-			</array>
-			<key>UTTypeDescription</key>
-			<string>Nintendo Switch Cartridge</string>
-			<key>UTTypeIdentifier</key>
-			<string>com.nintendo.switch-cartridge</string>
-			<key>UTTypeTagSpecification</key>
-			<dict>
-				<key>public.filename-extension</key>
-				<array>
-					<string>xci</string>
-				</array>
-			</dict>
-		</dict>
-	</array>
 </dict>
 </plist>

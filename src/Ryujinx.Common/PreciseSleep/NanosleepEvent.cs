@@ -57,7 +57,7 @@ namespace Ryujinx.Common.PreciseSleep
                 // The 1ms wait will be interrupted by the nanosleep timeout if it completes.
                 if (!_pool.SleepAndSignal(ns, timePoint))
                 {
-                    if (OperatingSystem.IsIOS())
+                    if ((OperatingSystem.IsIOS() || OperatingSystem.IsTvOS()))
                     {
                         _waitEvent.WaitOne(1);
 
@@ -74,7 +74,7 @@ namespace Ryujinx.Common.PreciseSleep
                 return true;
             }
 
-            if (OperatingSystem.IsIOS())
+            if ((OperatingSystem.IsIOS() || OperatingSystem.IsTvOS()))
             {
                 _waitEvent.WaitOne(1);
 

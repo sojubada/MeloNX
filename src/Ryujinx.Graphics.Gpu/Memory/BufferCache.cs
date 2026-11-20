@@ -100,7 +100,7 @@ namespace Ryujinx.Graphics.Gpu.Memory
                 return;
             }
 
-            bool isAppleUnifiedMemory = (OperatingSystem.IsIOS() || OperatingSystem.IsMacOS()) &&
+            bool isAppleUnifiedMemory = ((OperatingSystem.IsIOS() || OperatingSystem.IsTvOS()) || OperatingSystem.IsMacOS()) &&
                                         _context.Capabilities.MemoryType == SystemMemoryType.UnifiedMemory;
 
             string basis = string.Empty;

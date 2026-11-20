@@ -78,7 +78,7 @@ namespace Ryujinx.HLE
             UIHandler = Configuration.HostUIHandler;
 
             
-            MemoryAllocationFlags memoryAllocationFlags = OperatingSystem.IsIOS() ||
+            MemoryAllocationFlags memoryAllocationFlags = (OperatingSystem.IsIOS() || OperatingSystem.IsTvOS()) ||
                     configuration.MemoryManagerMode == MemoryManagerMode.SoftwarePageTable
                 ? MemoryAllocationFlags.None
                 : MemoryAllocationFlags.Reserve | MemoryAllocationFlags.Mirrorable;

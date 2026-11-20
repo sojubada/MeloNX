@@ -164,10 +164,10 @@ namespace Ryujinx.Graphics.Vulkan
             Textures = [];
             Samplers = [];
 
-            IsMoltenVk = OperatingSystem.IsMacOS() || OperatingSystem.IsIOS();
+            IsMoltenVk = OperatingSystem.IsMacOS() || (OperatingSystem.IsIOS() || OperatingSystem.IsTvOS());
 
             // Any device running on macOS (even Intel and AMD vendors) & iOS is using MoltenVK.
-            if (OperatingSystem.IsMacOS() || OperatingSystem.IsIOS())
+            if (OperatingSystem.IsMacOS() || (OperatingSystem.IsIOS() || OperatingSystem.IsTvOS()))
                 MVKInitialization.Initialize();
         }
 
@@ -415,7 +415,7 @@ namespace Ryujinx.Graphics.Vulkan
                 Vendor.ImgTec;
 
             GpuVendor = VendorUtils.GetNameFromId(properties.VendorID);
-            GpuDriver = hasDriverProperties && !(OperatingSystem.IsMacOS() || OperatingSystem.IsIOS()) ?
+            GpuDriver = hasDriverProperties && !(OperatingSystem.IsMacOS() || (OperatingSystem.IsIOS() || OperatingSystem.IsTvOS())) ?
                 VendorUtils.GetFriendlyDriverName(driverProperties.DriverID) : GpuVendor; // Fallback to vendor name if driver is unavailable or on MacOS where vendor is preferred.
 
             fixed (byte* deviceName = properties.DeviceName)

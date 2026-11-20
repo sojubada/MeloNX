@@ -56,7 +56,7 @@ namespace Ryujinx.Memory
         private static nint _source;
         
         public static event Action<MemoryPressureLevel> PressureChanged;
-        public static bool IsSupported => OperatingSystem.IsIOS() || OperatingSystem.IsMacOS();
+        public static bool IsSupported => (OperatingSystem.IsIOS() || OperatingSystem.IsTvOS()) || OperatingSystem.IsMacOS();
 
         /// <summary>
         /// Begins watching for pressure. Safe to call more than once; only the first call does

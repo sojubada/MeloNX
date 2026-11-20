@@ -457,7 +457,7 @@ namespace Ryujinx.Library
                 if (File.Exists(titleUpdateMetadataPath))
                 {
                     updatePath = JsonHelper.DeserializeFromFile(titleUpdateMetadataPath, _titleSerializerContext.TitleUpdateMetadata).Selected;
-                    if (OperatingSystem.IsIOS())
+                    if ((OperatingSystem.IsIOS() || OperatingSystem.IsTvOS()))
                         updatePath = Path.Combine(AppDataManager.BaseDirPath, updatePath);
 
                     if (File.Exists(updatePath))

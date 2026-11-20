@@ -9,7 +9,9 @@ import Foundation
 import CoreHaptics
 import UIKit
 import GameController
+#if !os(tvOS)
 import CoreMotion
+#endif
 import Melo_Controller
 
 class BaseController: Equatable, Identifiable {
@@ -31,7 +33,9 @@ class BaseController: Equatable, Identifiable {
     var nativeController: GCController?
     
     // Motion
+    #if !os(tvOS)
     var orientation: UIDeviceOrientation = UIDevice.current.orientation == .unknown ? .landscapeLeft : UIDevice.current.orientation
+    #endif
     let motionOperation = OperationQueue()
     var lastAccel = SIMD3<Float>(repeating: 0)
     var lastGyro = SIMD3<Float>(repeating: 0)
@@ -40,7 +44,9 @@ class BaseController: Equatable, Identifiable {
     var lastMotionSubmit: UInt64 = 0
     
     private var rumbleController: RumbleController?
-    var motionManager = CMMotionManager()
+    #if !os(tvOS)
+    var motionManager = CMMotionManager() // tvOS has no device motion; controller gyro (GCMotion) still works
+    #endif
     
     var inputQueue: DispatchQueue
     var motionQueue: DispatchQueue

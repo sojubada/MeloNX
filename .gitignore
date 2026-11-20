@@ -192,7 +192,6 @@ src/MeloNX/MeloNX.xcodeproj/project.xcworkspace/xcuserdata/*
 MeloNX-tvOS.xcodeproj/
 tvos/deps/src/
 tvos/deps/out/
-tvos/packages/
 tvos/memprobe/MemProbe.xcodeproj/
 tvos/memprobe/build/
 tvos/memprobe/dist/
@@ -200,3 +199,4 @@ build/
 dist/
 xcodebuild.log
 dotnet-publish.log
+dist/

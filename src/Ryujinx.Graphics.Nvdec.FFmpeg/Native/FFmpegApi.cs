@@ -26,7 +26,7 @@ namespace Ryujinx.Graphics.Nvdec.FFmpeg.Native
             {
                 return $"lib{libraryName}.so.{version}";
             }
-            else if (OperatingSystem.IsMacOS() || OperatingSystem.IsIOS())
+            else if (OperatingSystem.IsMacOS() || (OperatingSystem.IsIOS() || OperatingSystem.IsTvOS()))
             {
                 return $"lib{libraryName}.{version}.dylib";
             }

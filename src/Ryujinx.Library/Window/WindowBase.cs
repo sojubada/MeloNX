@@ -378,7 +378,7 @@ namespace Ryujinx.Library
         {
             userText = null;
 
-            if (OperatingSystem.IsIOS())
+            if ((OperatingSystem.IsIOS() || OperatingSystem.IsTvOS()))
             {
                 string result = null;
                 using ManualResetEventSlim inputReceived = new(false);
@@ -422,7 +422,7 @@ namespace Ryujinx.Library
 
         public bool DisplayMessageDialog(string title, string message)
         {
-            if (OperatingSystem.IsIOS())
+            if ((OperatingSystem.IsIOS() || OperatingSystem.IsTvOS()))
             {
                 Console.WriteLine($"Alert: {title}, message: {message}");
 
@@ -451,7 +451,7 @@ namespace Ryujinx.Library
         {
             userText = null;
 
-            if (OperatingSystem.IsIOS())
+            if ((OperatingSystem.IsIOS() || OperatingSystem.IsTvOS()))
             {
                 string result = null;
                 using ManualResetEventSlim inputReceived = new(false);

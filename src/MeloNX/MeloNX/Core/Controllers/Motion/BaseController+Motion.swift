@@ -6,7 +6,9 @@
 //
 
 import Foundation
+#if !os(tvOS)
 import CoreMotion
+#endif
 import GameController
 import UIKit
 
@@ -44,6 +46,7 @@ extension BaseController {
                 self.submitMotion(accelerometer: accel, gyroscope: gyro)
             }
         } else {
+            #if !os(tvOS)
             guard self.motionManager.isDeviceMotionAvailable else { return }
             
             self.motionManager.deviceMotionUpdateInterval = 1.0 / 60.0 // 60Hz
@@ -65,6 +68,7 @@ extension BaseController {
                 let (mappedAccel, mappedGyro) = self.remapToSwitchCoords(accel: rawAccel, gyro: rawGyro)
                 self.submitMotion(accelerometer: mappedAccel, gyroscope: mappedGyro)
             }
+            #endif
         }
     }
     
@@ -72,9 +76,11 @@ extension BaseController {
         nativeController?.motion?.valueChangedHandler = nil
         nativeController?.motion?.sensorsActive = false
         
+        #if !os(tvOS)
         if motionManager.isDeviceMotionActive {
             motionManager.stopDeviceMotionUpdates()
         }
+        #endif
     }
     
     private func shouldSubmitMotion() -> Bool {
@@ -100,6 +106,7 @@ extension BaseController {
         }
     }
     
+    #if !os(tvOS)
     private func remapToSwitchCoords(accel: SIMD3<Float>, gyro: SIMD3<Float>) -> (SIMD3<Float>, SIMD3<Float>) {
         let orientation = currentMotionOrientation()
         
@@ -133,4 +140,5 @@ extension BaseController {
         
         return orientation
     }
+    #endif
 }

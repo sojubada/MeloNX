@@ -25,7 +25,7 @@ namespace Ryujinx.HLE.HOS.Services.Ldn.UserServiceCreator.LdnMitm
             IPAddress localAddress;
             IPAddress localSubnetMask;
 
-            if (OperatingSystem.IsIOS())
+            if ((OperatingSystem.IsIOS() || OperatingSystem.IsTvOS()))
             {
                 if (!IPAddress.TryParse(config.MultiplayerLanInterfaceAddress, out localAddress) ||
                     !IPAddress.TryParse(config.MultiplayerLanInterfaceSubnetMask, out localSubnetMask))

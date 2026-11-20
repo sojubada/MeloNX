@@ -31,9 +31,10 @@ ARCH=arm64
 # MoltenVK 버전. 러너의 Xcode 16.4 와 빌드되는 것이 우선이라 v1.3.0 을 쓴다.
 # (구버전은 최신 Xcode 에서 자체 컴파일 에러가 날 수 있다)
 # 교체: MOLTENVK_TAG=v1.4.2 ./build-deps.sh moltenvk
-MOLTENVK_TAG="${MOLTENVK_TAG:-v1.3.0}"
+MOLTENVK_TAG="${MOLTENVK_TAG:-v1.4.0}"   # MeloNX 2.7 bundles MoltenVK 1.4.0
 # SDL 은 릴리즈 태그에 3.5.0 이 없다(최신 안정판 3.4.x). 아래 주석 참고.
-SDL_REF="${SDL_REF:-main}"
+# MeloNX 2.7 bundles "SDL-3.5.0-e4f75ba" (main, 2026-04-12, "Remove SDL_gtk").
+SDL_REF="${SDL_REF:-e4f75bac451230d31695158ed35f459e7a04585c}"
 FFMPEG_TAG="${FFMPEG_TAG:-n6.1.2}"
 
 # 스크립트는 tvos/scripts/ 에 있다. 리포지토리 루트는 두 단계 위다.
@@ -193,8 +194,11 @@ build_sdl3() {
       git clone --depth 1 https://github.com/libsdl-org/SDL.git "$dir" \
         || die "SDL 클론 실패"
     else
-      git clone https://github.com/libsdl-org/SDL.git "$dir" || die "SDL 클론 실패"
-      ( cd "$dir" && git checkout -q "$SDL_REF" ) || die "SDL ref 체크아웃 실패: $SDL_REF"
+      # Fetch just that commit (GitHub serves a full SHA directly)
+      git init -q "$dir"
+      ( cd "$dir" && git remote add origin https://github.com/libsdl-org/SDL.git \
+          && git fetch -q --depth 1 origin "$SDL_REF" && git checkout -q FETCH_HEAD ) \
+        || die "SDL ref 체크아웃 실패: $SDL_REF"
     fi
   fi
   log "SDL 버전: $(grep -hoE 'SDL_M(AJOR|INOR|MICRO)_VERSION[[:space:]]+[0-9]+' \

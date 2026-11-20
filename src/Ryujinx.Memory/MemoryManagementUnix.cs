@@ -59,7 +59,7 @@ namespace Ryujinx.Memory
                 throw new SystemException(Marshal.GetLastPInvokeErrorMessage());
             }
 
-            if (OperatingSystem.IsIOS() && forJit)
+            if ((OperatingSystem.IsIOS() || OperatingSystem.IsTvOS()) && forJit)
             {
                 MachJitWorkaround.ReallocateAreaWithOwnership(ptr, (int)size);
             }
@@ -142,7 +142,7 @@ namespace Ryujinx.Memory
         /// </summary>
         public static bool TryReuseDiscardedPages(nint address, ulong size)
         {
-            if (OperatingSystem.IsMacOS() || OperatingSystem.IsIOS())
+            if (OperatingSystem.IsMacOS() || (OperatingSystem.IsIOS() || OperatingSystem.IsTvOS()))
             {
                 return madvise(address, size, MADV_FREE_REUSE_DARWIN) == 0;
             }
@@ -157,7 +157,7 @@ namespace Ryujinx.Memory
         /// </summary>
         private static bool DiscardPages(nint address, ulong size)
         {
-            if (OperatingSystem.IsMacOS() || OperatingSystem.IsIOS())
+            if (OperatingSystem.IsMacOS() || (OperatingSystem.IsIOS() || OperatingSystem.IsTvOS()))
             {
                 if (madvise(address, size, MADV_FREE_REUSABLE_DARWIN) == 0)
                 {
@@ -216,7 +216,7 @@ namespace Ryujinx.Memory
         {
             int fd;
 
-            if (OperatingSystem.IsIOS()) {
+            if ((OperatingSystem.IsIOS() || OperatingSystem.IsTvOS())) {
                 IntPtr baseAddress = MachJitWorkaround.AllocateSharedMemory(size, reserve);
 
                 _sharedMemorySizes.TryAdd(baseAddress, size);
@@ -270,7 +270,7 @@ namespace Ryujinx.Memory
 
         public static void DestroySharedMemory(nint handle)
         {
-           if (OperatingSystem.IsIOS())
+           if ((OperatingSystem.IsIOS() || OperatingSystem.IsTvOS()))
             {
                 if (_sharedMemorySizes.TryRemove(handle, out ulong size))
                 {
@@ -285,7 +285,7 @@ namespace Ryujinx.Memory
 
         public static nint MapSharedMemory(nint handle, ulong size)
         {
-            if (OperatingSystem.IsIOS())
+            if ((OperatingSystem.IsIOS() || OperatingSystem.IsTvOS()))
             {
                 // The base of the shared memory is already mapped - it's the handle.
                 // Views are remapped from it.
@@ -300,7 +300,7 @@ namespace Ryujinx.Memory
 
         public static void UnmapSharedMemory(nint address, ulong size)
         {
-            if (!OperatingSystem.IsIOS())
+            if (!(OperatingSystem.IsIOS() || OperatingSystem.IsTvOS()))
             {
                 munmap(address, size);
             }
@@ -308,7 +308,7 @@ namespace Ryujinx.Memory
 
         public static void MapView(nint sharedMemory, ulong srcOffset, nint location, ulong size)
         {
-            if (OperatingSystem.IsIOS())
+            if ((OperatingSystem.IsIOS() || OperatingSystem.IsTvOS()))
             {
                 MachJitWorkaround.MapView(sharedMemory, srcOffset, location, size);
             }

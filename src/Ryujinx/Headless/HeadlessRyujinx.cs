@@ -55,7 +55,7 @@ namespace Ryujinx.Headless
             // Make process DPI aware for proper window sizing on high-res screens.
             ForceDpiAware.Windows();
 
-            if (!OperatingSystem.IsIOS()) 
+            if (!(OperatingSystem.IsIOS() || OperatingSystem.IsTvOS())) 
             {
                 Console.Title = $"HeadlessRyujinx Console {Program.Version}";
             }
@@ -188,7 +188,7 @@ namespace Ryujinx.Headless
 
             GraphicsConfig.EnableShaderCache = !option.DisableShaderCache;
 
-            if (OperatingSystem.IsMacOS() || OperatingSystem.IsIOS())
+            if (OperatingSystem.IsMacOS() || (OperatingSystem.IsIOS() || OperatingSystem.IsTvOS()))
             {
                 if (option.GraphicsBackend == GraphicsBackend.OpenGl)
                 {

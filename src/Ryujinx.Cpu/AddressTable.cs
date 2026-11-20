@@ -181,7 +181,7 @@ namespace ARMeilleure.Common
         public static AddressTable<TEntry> CreateForArm(bool for64Bits, MemoryManagerType type)
         {
             // Assume software memory means that we don't want to use any signal handlers.
-            bool sparse = type is not MemoryManagerType.SoftwareMmu and not MemoryManagerType.SoftwarePageTable && !OperatingSystem.IsIOS();
+            bool sparse = type is not MemoryManagerType.SoftwareMmu and not MemoryManagerType.SoftwarePageTable && !(OperatingSystem.IsIOS() || OperatingSystem.IsTvOS());
 
             return new AddressTable<TEntry>(AddressTablePresets.GetArmPreset(for64Bits, sparse), sparse);
         }

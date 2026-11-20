@@ -29,7 +29,7 @@ namespace Ryujinx.Common.Helper
         public static bool IsMacOS => OperatingSystem.IsMacOS();
         public static bool IsWindows => OperatingSystem.IsWindows();
         public static bool IsLinux => OperatingSystem.IsLinux();
-        public static bool IsIOS => OperatingSystem.IsIOS();
+        public static bool IsIOS => (OperatingSystem.IsIOS() || OperatingSystem.IsTvOS());
 
         public static bool IsArm => Architecture is Architecture.Arm64;
 

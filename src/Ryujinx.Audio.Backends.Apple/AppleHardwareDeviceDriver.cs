@@ -42,7 +42,7 @@ namespace Ryujinx.Audio.Backends.Apple
             Volume = 1f;
         }
 
-        public static bool IsSupported => OperatingSystem.IsMacOSVersionAtLeast(10, 10) || OperatingSystem.IsIOSVersionAtLeast(8, 0);
+        public static bool IsSupported => OperatingSystem.IsMacOSVersionAtLeast(10, 10) || OperatingSystem.IsIOSVersionAtLeast(8, 0) || OperatingSystem.IsTvOSVersionAtLeast(9, 0);
 
         public ManualResetEvent GetUpdateRequiredEvent()
             => _updateRequiredEvent;

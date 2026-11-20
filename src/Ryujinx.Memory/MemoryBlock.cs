@@ -42,7 +42,7 @@ namespace Ryujinx.Memory
         /// <exception cref="PlatformNotSupportedException">Throw when the current platform is not supported</exception>
         public MemoryBlock(ulong size, MemoryAllocationFlags flags = MemoryAllocationFlags.None)
         {
-            if (flags.HasFlag(MemoryAllocationFlags.DualMapping) && OperatingSystem.IsIOS())
+            if (flags.HasFlag(MemoryAllocationFlags.DualMapping) && (OperatingSystem.IsIOS() || OperatingSystem.IsTvOS()))
             {
                 _dualMappedAllocator = new DualMappedJitAllocator(size);
                 _pointer = _dualMappedAllocator.RwPtr;
@@ -117,7 +117,7 @@ namespace Ryujinx.Memory
         /// </summary>
         public void Detach()
         {
-            if (!OperatingSystem.IsIOS()) { return; }
+            if (!(OperatingSystem.IsIOS() || OperatingSystem.IsTvOS())) { return; }
 
             if (_dualMappedAllocator != null && DualMappedJitAllocator.hasTXM)
             {
@@ -461,7 +461,7 @@ namespace Ryujinx.Memory
             nint ptr = Interlocked.Exchange(ref _pointer, nint.Zero);
 
             // If pointer is null, the memory was already freed or never allocated.
-            if (_dualMappedAllocator != null && OperatingSystem.IsIOS())
+            if (_dualMappedAllocator != null && (OperatingSystem.IsIOS() || OperatingSystem.IsTvOS()))
             {
                 _dualMappedAllocator.Dispose();
                 _dualMappedAllocator = null;
@@ -504,7 +504,7 @@ namespace Ryujinx.Memory
                     return OperatingSystem.IsWindowsVersionAtLeast(10, 0, 17134);
                 }
 
-                return OperatingSystem.IsLinux() || OperatingSystem.IsMacOS()  || OperatingSystem.IsIOS();
+                return OperatingSystem.IsLinux() || OperatingSystem.IsMacOS()  || (OperatingSystem.IsIOS() || OperatingSystem.IsTvOS());
             }
 
             return true;
@@ -517,7 +517,7 @@ namespace Ryujinx.Memory
 
         public static bool DualMappedEnabled()
         {
-            return OperatingSystem.IsIOS() ? DualMappedJitAllocator.dualMappingEnabled : false;
+            return (OperatingSystem.IsIOS() || OperatingSystem.IsTvOS()) ? DualMappedJitAllocator.dualMappingEnabled : false;
         }
 
         private static void ThrowInvalidMemoryRegionException() => throw new InvalidMemoryRegionException();

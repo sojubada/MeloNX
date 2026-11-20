@@ -42,7 +42,7 @@ namespace Ryujinx.HLE.HOS.Kernel.Common
                 Name = "HLE.TimeManager",
             };
 
-            if (OperatingSystem.IsIOS())
+            if ((OperatingSystem.IsIOS() || OperatingSystem.IsTvOS()))
             {
                 work.Priority = ThreadPriority.AboveNormal;
             }

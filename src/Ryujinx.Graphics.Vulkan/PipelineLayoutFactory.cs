@@ -19,7 +19,7 @@ namespace Ryujinx.Graphics.Vulkan
             DescriptorSetLayout[] layouts = new DescriptorSetLayout[setDescriptors.Count];
             bool[] updateAfterBindFlags = new bool[setDescriptors.Count];
 
-            bool isMoltenVk = gd.IsMoltenVk && !OperatingSystem.IsIOSVersionAtLeast(17); 
+            bool isMoltenVk = gd.IsMoltenVk && !(OperatingSystem.IsIOSVersionAtLeast(17) || OperatingSystem.IsTvOSVersionAtLeast(17)); 
 
             for (int setIndex = 0; setIndex < setDescriptors.Count; setIndex++)
             {

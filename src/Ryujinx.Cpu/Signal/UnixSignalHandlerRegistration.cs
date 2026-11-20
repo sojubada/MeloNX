@@ -62,7 +62,7 @@ namespace Ryujinx.Cpu.Signal
                 throw new InvalidOperationException($"Could not register SIGSEGV sigaction. Error: {result}");
             }
 
-            if (OperatingSystem.IsMacOS() || OperatingSystem.IsIOS())
+            if (OperatingSystem.IsMacOS() || (OperatingSystem.IsIOS() || OperatingSystem.IsTvOS()))
             {
                 result = sigaction(SIGBUS, ref sig, out _);
 
@@ -78,7 +78,7 @@ namespace Ryujinx.Cpu.Signal
         public static bool RestoreExceptionHandler(SigAction oldAction)
         {
             return sigaction(SIGSEGV, ref oldAction, out SigAction _) == 0 && 
-                   (!OperatingSystem.IsMacOS() || OperatingSystem.IsIOS() || sigaction(SIGBUS, ref oldAction, out SigAction _) == 0);
+                   (!OperatingSystem.IsMacOS() || (OperatingSystem.IsIOS() || OperatingSystem.IsTvOS()) || sigaction(SIGBUS, ref oldAction, out SigAction _) == 0);
         }
     }
 }

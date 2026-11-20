@@ -108,7 +108,7 @@ namespace Ryujinx.HLE.HOS.Applets
                         _npads.NpadButtonDownEvent += HandleNpadButtonDownEvent;
                         _npads.NpadButtonUpEvent += HandleNpadButtonUpEvent;
 
-                        if (!OperatingSystem.IsIOS())
+                        if (!(OperatingSystem.IsIOS() || OperatingSystem.IsTvOS()))
                             _keyboardRenderer = new SoftwareKeyboardRenderer(_device.UIHandler.HostUITheme);
                     }
 
