@@ -71,6 +71,7 @@ final class TVControllers: ObservableObject {
         }
 
         gamepads = kept
+        TVLog.write("controllers: \(GCController.controllers().map { "\($0.vendorName ?? "?")\($0.extendedGamepad != nil ? "[ext]" : "")" }.joined(separator: ", "))")
 
         if TVEmulator.shared.isRunning {
             attachAll()

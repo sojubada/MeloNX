@@ -139,6 +139,7 @@ final class TVEmulator: ObservableObject {
         options.resolveMultiplayerLanInterface()
 
         TVControllers.shared.attachAll()
+        TVLog.write("start \(game.titleName) [\(game.titleId)] \(game.fileURL.lastPathComponent); pads: \(TVControllers.shared.summary); available \(TVMemory.availableMB) MB")
 
         threadActive = true
         state = .running(game)
@@ -147,6 +148,7 @@ final class TVEmulator: ObservableObject {
         Thread.detachNewThread {
             Thread.current.name = "MeloNX emulation"
             let code = Ryujinx.mainRyu(options)
+            TVLog.write("emulation ended with code \(code)")
 
             DispatchQueue.main.async {
                 self.threadActive = false

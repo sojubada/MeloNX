@@ -97,6 +97,6 @@ enum TVMemory {
         requestedLimitMB = target
         let result = memorystatus_control(MEMORYSTATUS_CMD_SET_JETSAM_TASK_LIMIT, getpid(), UInt32(target), nil, 0)
         raisedLimit = (result == 0)
-        NSLog("[MeloNX tvOS] jetsam limit \(target) MB → \(raisedLimit ? "ok" : "refused (errno \(errno))"); physical \(physicalMB) MB, available now \(availableMB) MB")
+        TVLog.write("jetsam limit \(target) MB → \(raisedLimit ? "ok" : "refused (errno \(errno))"); physical \(physicalMB) MB, available now \(availableMB) MB")
     }
 }

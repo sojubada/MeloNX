@@ -53,7 +53,8 @@ enum TVPaths {
         }
 
         setenv("MELONX_BASE_DIR", root.path, 1)
-        NSLog("[MeloNX tvOS] data root: \(root.path)")
+        TVLog.write("---- launch \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] ?? "?") (\(Bundle.main.infoDictionary?["CFBundleVersion"] ?? "?")), tvOS \(ProcessInfo.processInfo.operatingSystemVersionString)")
+        TVLog.write("data root: \(root.path)")
     }
 
     private static func isWritable(_ dir: URL) -> Bool {
@@ -65,7 +66,7 @@ enum TVPaths {
             try fm.removeItem(at: probe)
             return true
         } catch {
-            NSLog("[MeloNX tvOS] not writable: \(dir.path) (\(error.localizedDescription))")
+            NSLog("[MeloNX tvOS] not writable: %@ (%@)", dir.path, error.localizedDescription)
             return false
         }
     }
@@ -100,5 +101,28 @@ enum TVPaths {
 extension URL {
     static var controllerMappingsURL: URL {
         TVPaths.root.appendingPathComponent("controllerMappings.json")
+    }
+}
+
+/// Launch / emulation log next to the Ryujinx logs: Logs/tvos-app.log.
+/// The Apple TV has no console, so this file is how a failed run gets diagnosed.
+enum TVLog {
+    private static let formatter: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f
+    }()
+
+    static func write(_ message: String) {
+        NSLog("[MeloNX tvOS] %@", message)
+        let line = Data("\(formatter.string(from: Date())) \(message)\n".utf8)
+        let url = TVPaths.logs.appendingPathComponent("tvos-app.log")
+        if let handle = try? FileHandle(forWritingTo: url) {
+            _ = try? handle.seekToEnd()
+            try? handle.write(contentsOf: line)
+            try? handle.close()
+        } else {
+            try? line.write(to: url)
+        }
     }
 }

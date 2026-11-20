@@ -47,6 +47,34 @@ while IFS= read -r f; do
 done < <(find "$WORK/$NAME.app/Frameworks" -type f \( -name "*.dylib" -o -perm -u+x \) 2>/dev/null | grep -vE "\.(plist|nib|car|png|json)$" || true)
 [ "$BAD" -eq 0 ] || { echo "[!] 위 바이너리들을 appletvos SDK로 다시 빌드하십시오." >&2; exit 1; }
 
+# 모든 바이너리의 의존 라이브러리가 시스템(/usr/lib, /System) 이거나 번들 안
+# (@rpath = @executable_path/Frameworks) 에 실제로 있어야 한다. 하나라도 빌드
+# 머신의 절대 경로를 가리키면 dyld 가 main() 전에 앱을 죽인다.
+echo "==> 링크 경로 확인"
+APPDIR="$WORK/$NAME.app"
+LINKBAD=0
+check_links() {
+  local bin="$1" dep
+  while read -r dep; do
+    case "$dep" in
+      /usr/lib/*|/System/*) ;;
+      @rpath/*)
+        if [ ! -e "$APPDIR/Frameworks/${dep#@rpath/}" ]; then
+          echo "    [!] ${bin#$APPDIR/}: $dep 가 Frameworks 에 없음"; LINKBAD=1
+        fi ;;
+      *) echo "    [!] ${bin#$APPDIR/}: 번들 밖 경로 $dep"; LINKBAD=1 ;;
+    esac
+  done < <(otool -L "$bin" | tail -n +2 | awk '{print $1}' | grep -v "^@rpath/$(basename "$bin")$")
+}
+check_links "$BIN"
+while IFS= read -r f; do check_links "$f"; done < <(find "$APPDIR/Frameworks" -type f -name "*.dylib")
+while IFS= read -r fw; do
+  inner="$fw/$(basename "${fw%.framework}")"
+  [ -f "$inner" ] && check_links "$inner"
+done < <(find "$APPDIR/Frameworks" -maxdepth 1 -name "*.framework")
+[ "$LINKBAD" -eq 0 ] || { echo "[!] 위 링크 경로를 고치십시오 (install_name_tool -change)." >&2; exit 1; }
+echo "    ok"
+
 # 임베드된 각 dylib/framework 에도 서명이 필요하다.
 echo "==> ldid 서명"
 while IFS= read -r f; do

@@ -139,6 +139,14 @@ build_moltenvk() {
   cp "$dylib" "$OUT/libMoltenVK.dylib"
   chmod u+w "$OUT/libMoltenVK.dylib"
 
+  # The tvOS xcframework slice is arm64 + arm64e. MeloNX ships arm64 only, and
+  # third-party arm64e code is not something to rely on under TrollStore.
+  if lipo -archs "$OUT/libMoltenVK.dylib" | grep -qw arm64e; then
+    lipo "$OUT/libMoltenVK.dylib" -thin arm64 -output "$OUT/libMoltenVK.arm64.dylib"
+    mv "$OUT/libMoltenVK.arm64.dylib" "$OUT/libMoltenVK.dylib"
+    log "MoltenVK: arm64 만 남김 ($(lipo -archs "$OUT/libMoltenVK.dylib"))"
+  fi
+
   # iOS 판과 같은 @rpath 설치 이름을 맞춘다 (Xcode가 Frameworks/ 에 임베드).
   install_name_tool -id @rpath/libMoltenVK.dylib "$OUT/libMoltenVK.dylib"
   verify_platform "$OUT/libMoltenVK.dylib"
@@ -308,8 +316,25 @@ build_ffmpeg() {
     verify_platform "$OUT/lib${lib}.dylib"
   done
 
-  warn "FFmpeg dylib 들은 서로를 참조합니다. 앱에 임베드한 뒤"
-  warn "otool -L 로 상호 참조 경로가 전부 @rpath/ 로 바뀌었는지 확인하세요."
+  # The libraries reference each other by their install path on the build machine
+  # (/Users/runner/.../install/lib/libavutil.58.dylib). The app links libavcodec at
+  # launch, so one such path makes dyld abort before main(). Point them at @rpath.
+  log "FFmpeg 상호 참조를 @rpath 로 변경"
+  for f in "$OUT"/libav*.dylib "$OUT"/libsw*.dylib; do
+    [ -f "$f" ] || continue
+    otool -L "$f" | tail -n +2 | awk '{print $1}' | while read -r dep; do
+      case "$dep" in
+        */libavcodec.*|*/libavfilter.*|*/libavformat.*|*/libavutil.*|*/libswresample.*|*/libswscale.*)
+          base="$(basename "$dep")"            # libavutil.58.dylib
+          name="${base%%.*}"                    # libavutil
+          [ "$dep" = "@rpath/$name.dylib" ] && continue
+          install_name_tool -change "$dep" "@rpath/$name.dylib" "$f"
+          log "  $(basename "$f"): $dep → @rpath/$name.dylib" ;;
+      esac
+    done
+  done
+  otool -L "$OUT"/libav*.dylib "$OUT"/libsw*.dylib | grep -E "libav|libsw" | grep -v "@rpath" \
+    && die "FFmpeg 에 @rpath 가 아닌 상호 참조가 남았습니다" || true
   warn "필요하면 install_name_tool -change 로 보정합니다."
 }
 
