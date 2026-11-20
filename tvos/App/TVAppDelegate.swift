@@ -73,6 +73,9 @@ final class TVAppDelegate: UIResponder, UIApplicationDelegate {
     private static func setEmulatorEnvironment() {
         var values: [(String, String)] = [
             ("MVK_CONFIG_MAX_ACTIVE_METAL_COMMAND_BUFFERS_PER_QUEUE", "32"),
+            // One failed Metal command buffer must not end the game: keep using the
+            // device (the core then drops that frame, see VulkanException.cs).
+            ("MVK_CONFIG_RESUME_LOST_DEVICE", "1"),
             ("HAS_TXM", "0"),
             ("DUAL_MAPPED_JIT", "0"),
         ]

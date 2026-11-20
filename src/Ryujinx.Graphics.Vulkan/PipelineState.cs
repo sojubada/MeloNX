@@ -312,6 +312,7 @@ namespace Ryujinx.Graphics.Vulkan
         public NativeArray<PipelineShaderStageCreateInfo> Stages;
 
         private static int _loggedPipelineFailures;
+        private static int _loggedPipelineRetries;
         public PipelineLayout PipelineLayout;
         public SpecData SpecializationData;
 
@@ -774,6 +775,45 @@ namespace Ryujinx.Graphics.Vulkan
                 else
                 {
                     result = gd.Api.CreateGraphicsPipelines(device, cache, 1, &pipelineCreateInfo, null, &pipelineHandle);
+                }
+
+                if (isMoltenVk && result == Result.ErrorInitializationFailed)
+                {
+                    // Metal rejects a float vertex attribute feeding an int4/uint4 shader input
+                    // ("Cannot convert attribute from MTLAttributeFormatFloat to int4 or uint4").
+                    // Device logs show the float attributes are the constant ones on binding 0
+                    // (stride 0, never read from memory), so retry with integer placeholders.
+                    Span<VertexInputAttributeDescription> attrs = _vertexAttributeDescriptions2.AsSpan();
+                    bool changed = false;
+
+                    foreach (Format retryFormat in stackalloc Format[] { Format.R32G32B32A32Sint, Format.R32G32B32A32Uint })
+                    {
+                        for (int i = 0; i < VertexAttributeDescriptionsCount; i++)
+                        {
+                            if (attrs[i].Binding == 0)
+                            {
+                                attrs[i].Format = retryFormat;
+                                changed = true;
+                            }
+                        }
+
+                        if (!changed)
+                        {
+                            break;
+                        }
+
+                        result = gd.Api.CreateGraphicsPipelines(device, cache, 1, &pipelineCreateInfo, null, &pipelineHandle);
+
+                        if (Interlocked.Increment(ref _loggedPipelineRetries) <= 20)
+                        {
+                            Logger.Info?.Print(LogClass.Gpu, $"Graphics pipeline retry with {retryFormat} placeholders: {result}");
+                        }
+
+                        if (!result.IsError)
+                        {
+                            break;
+                        }
+                    }
                 }
 
                 while (blendEnables != 0)
