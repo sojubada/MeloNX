@@ -94,3 +94,11 @@ enum TVPaths {
         })
     }
 }
+
+/// iOS defines these next to RyujinxController (Core/RyujinxController.swift);
+/// the reused ControllerMappingStore reads the mapping file from here.
+extension URL {
+    static var controllerMappingsURL: URL {
+        TVPaths.root.appendingPathComponent("controllerMappings.json")
+    }
+}
