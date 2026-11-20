@@ -17,6 +17,7 @@ enum TVLaunchBlock: Error, Equatable {
     case noJIT
     case noGamepad
     case noKeys
+    case noFirmware
     case alreadyRunning
 
     var title: String {
@@ -24,6 +25,7 @@ enum TVLaunchBlock: Error, Equatable {
         case .noJIT: return "JIT를 사용할 수 없습니다"
         case .noGamepad: return "게임패드를 연결하세요"
         case .noKeys: return "prod.keys가 없습니다"
+        case .noFirmware: return "펌웨어가 설치되지 않았습니다"
         case .alreadyRunning: return "이미 실행 중입니다"
         }
     }
@@ -35,7 +37,9 @@ enum TVLaunchBlock: Error, Equatable {
         case .noGamepad:
             return "확장 게임패드(8BitDo, Xbox, DualSense 등)가 연결되어야 게임을 시작합니다. Siri Remote로는 플레이할 수 없습니다.\n설정 → 리모컨 및 기기 → 블루투스에서 연결하세요."
         case .noKeys:
-            return "본인 기기에서 추출한 prod.keys를 다음 폴더 안에 넣고 새로고침하세요.\n\(TVPaths.documents.path)"
+            return "본인 기기에서 추출한 prod.keys를 다음 폴더에 넣고 새로고침하세요.\n\(TVPaths.keys.path)"
+        case .noFirmware:
+            return "게임은 펌웨어의 시스템 폰트·시간대 데이터가 있어야 시작됩니다(없으면 앱이 종료됩니다).\n본인 기기에서 덤프한 펌웨어 .zip을 \(TVPaths.firmware.path)에 넣고 홈 화면의 \"펌웨어 설치\"를 누르세요."
         case .alreadyRunning:
             return "실행 중인 게임을 먼저 종료하세요."
         }
@@ -82,7 +86,7 @@ final class TVEmulator: ObservableObject {
         }
     }
 
-    /// Game files anywhere in Documents (and the data root). Only container formats:
+    /// Game files in roms/ (or anywhere else in the input folders). Only container formats:
     /// loose .nca files also exist inside the emulator's own bis/ folder.
     private static func scan() -> [GameInfo] {
         let exts: Set<String> = ["nsp", "xci", "nro"]
@@ -124,6 +128,7 @@ final class TVEmulator: ObservableObject {
         if !TVJIT.isAvailable { return .noJIT }
         if !TVControllers.shared.hasGamepad { return .noGamepad }
         if !TVPaths.hasProdKeys { return .noKeys }
+        if firmwareVersion.isEmpty { return .noFirmware }
         return nil
     }
 
@@ -137,6 +142,7 @@ final class TVEmulator: ObservableObject {
         options.backendThreading = .on                // as RyujinxController.startGame
         options.disableDockedMode = true              // handheld 720p: lighter for the Apple TV GPU
         options.resolveMultiplayerLanInterface()
+        options.loggingEnableError = true             // errors go to Logs/stdout.log
 
         TVControllers.shared.attachAll()
         TVLog.write("start \(game.titleName) [\(game.titleId)] \(game.fileURL.lastPathComponent); pads: \(TVControllers.shared.summary); available \(TVMemory.availableMB) MB")

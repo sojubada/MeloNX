@@ -48,7 +48,7 @@ enum TVJIT {
     /// Automatic requests are rate limited so a TrollStore without the URL
     /// scheme, or a failed attach, cannot bounce the app back and forth.
     @MainActor
-    static func request(automatic: Bool) {
+    static func request(automatic: Bool, completion: ((Bool) -> Void)? = nil) {
         guard !isAvailable else { return }
         let key = "tvJITLastRequest"
         let now = Date().timeIntervalSince1970
@@ -60,6 +60,7 @@ enum TVJIT {
         TVLog.write("JIT: asking TrollStore \(enableURL.absoluteString)")
         UIApplication.shared.open(enableURL, options: [:]) { ok in
             TVLog.write("JIT: open URL \(ok ? "accepted" : "refused (no TrollStore URL scheme?)")")
+            completion?(ok)
         }
     }
 

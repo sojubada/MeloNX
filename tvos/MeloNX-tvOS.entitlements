@@ -17,7 +17,13 @@
 	       the core reserves large guest address ranges.
 
 	     private.memorystatus
-	       memorystatus_control to raise our own jetsam limit (TVMemory). -->
+	       memorystatus_control to raise our own jetsam limit (TVMemory).
+
+	     private.security.no-sandbox
+	       the tvOS sandbox denies an app its own Documents/ (device log: "app can
+	       write: false", files there invisible). Without it MeloNX could not use
+	       the upstream layout Documents/roms, Documents/system/prod.keys. Argo uses
+	       it on the same Apple TV. The data container itself is kept. -->
 	<key>get-task-allow</key>
 	<true/>
 	<key>com.apple.developer.kernel.increased-memory-limit</key>
@@ -25,6 +31,8 @@
 	<key>com.apple.developer.kernel.extended-virtual-addressing</key>
 	<true/>
 	<key>com.apple.private.memorystatus</key>
+	<true/>
+	<key>com.apple.private.security.no-sandbox</key>
 	<true/>
 </dict>
 </plist>

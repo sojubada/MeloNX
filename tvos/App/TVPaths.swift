@@ -2,20 +2,19 @@
 //  TVPaths.swift
 //  MeloNX tvOS
 //
-//  Where everything lives on the Apple TV: inside the app's own data container,
-//  laid out like the iOS app (MeloNX keeps everything in Documents/):
+//  Where everything lives: the upstream MeloNX layout (Core/RyujinxController.swift)
+//  inside the app's own data container:
 //
 //      <container>/Documents/
-//          roms/      ← put .nsp / .xci / .nro here (sub-folders are fine)
-//          system/    ← prod.keys (and title.keys)
-//          firmware/  ← firmware .zip or extracted folder, installed from the app
-//          Logs/      ← tvos-app.log (launch steps), stdout.log (core output), Ryujinx logs
+//          roms/      ← games .nsp / .xci / .nro (sub-folders are fine)
+//          system/    ← prod.keys, title.keys
+//          firmware/  ← firmware .zip (installed from the home screen)
+//          Logs/      ← tvos-app.log, stdout.log (+ stdout.prev.log = previous run)
 //          bis/, games/, profiles/ … ← created by the emulator
 //
-//  A file browser finds the container under
-//  /var/mobile/Containers/Data/Application/<UUID>/ — the library screen shows the
-//  full path. If Documents cannot be written, Library/Caches/MeloNX is used instead
-//  (tvOS may purge Caches, so Documents is preferred).
+//  The tvOS sandbox denies an app its own Documents, hence the no-sandbox
+//  entitlement. If Documents still cannot be written, Library/Caches/MeloNX
+//  (same sub-folders) is used and the home screen shows that path.
 //
 
 import Foundation
@@ -37,10 +36,19 @@ enum TVPaths {
     static var logs: URL { root.appendingPathComponent("Logs", isDirectory: true) }
     static var prodKeys: URL { keys.appendingPathComponent("prod.keys") }
 
+    /// Library/Caches/MeloNX: data root of builds 16–21; still searched so files
+    /// copied there keep working.
+    static let legacyRoot: URL? = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first?
+        .appendingPathComponent("MeloNX", isDirectory: true)
+
     /// Folders searched for games, keys and firmware.
     static var inputDirs: [URL] {
-        var dirs = [documents]
-        if root.standardizedFileURL != documents.standardizedFileURL { dirs.append(root) }
+        var dirs = [root]
+        for d in [documents, legacyRoot].compactMap({ $0 })
+            where !dirs.contains(where: { $0.standardizedFileURL == d.standardizedFileURL })
+            && FileManager.default.fileExists(atPath: d.path) {
+            dirs.append(d)
+        }
         return dirs
     }
 
@@ -48,9 +56,7 @@ enum TVPaths {
     static func prepare() {
         let fm = FileManager.default
         var candidates = [documents]
-        if let caches = fm.urls(for: .cachesDirectory, in: .userDomainMask).first {
-            candidates.append(caches.appendingPathComponent("MeloNX", isDirectory: true))
-        }
+        if let legacyRoot { candidates.append(legacyRoot) }
         candidates.append(fm.temporaryDirectory.appendingPathComponent("MeloNX", isDirectory: true))
         root = candidates.first(where: isWritable) ?? candidates[candidates.count - 1]
 
@@ -67,12 +73,16 @@ enum TVPaths {
         setenv("MELONX_BASE_DIR", root.path, 1)
     }
 
-    /// Copies prod.keys / title.keys found anywhere under Documents into
-    /// <root>/system, where the core (AppDataManager.KeysDirPath) reads them.
+    /// The core reads keys only from <root>/system (AppDataManager.KeysDirPath).
+    /// If prod.keys / title.keys were put somewhere else in the input folders
+    /// (e.g. Documents/ itself), copy them there.
     static func importKeys() {
         let fm = FileManager.default
         for name in ["prod.keys", "title.keys"] {
-            guard let found = find(in: [documents], where: { $0.lastPathComponent.lowercased() == name }).first else { continue }
+            if fm.fileExists(atPath: keys.appendingPathComponent(name).path) { continue }
+            let others = inputDirs.flatMap { [$0.appendingPathComponent("system").appendingPathComponent(name)] }
+            let direct = others.first { fm.fileExists(atPath: $0.path) }
+            guard let found = direct ?? find(in: inputDirs, where: { $0.lastPathComponent.lowercased() == name }).first else { continue }
             let dest = keys.appendingPathComponent(name)
             if found.standardizedFileURL == dest.standardizedFileURL { continue }
             try? fm.removeItem(at: dest)
@@ -94,8 +104,8 @@ enum TVPaths {
                                                          options: [.skipsHiddenFiles]) else { continue }
             for case let url as URL in e {
                 if (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true {
-                    if dir.standardizedFileURL == root.standardizedFileURL && skip.contains(url.lastPathComponent)
-                        && url.deletingLastPathComponent().standardizedFileURL == root.standardizedFileURL {
+                    if skip.contains(url.lastPathComponent)
+                        && url.deletingLastPathComponent().standardizedFileURL == dir.standardizedFileURL {
                         e.skipDescendants()
                     }
                     continue
@@ -176,7 +186,12 @@ enum TVLog {
         tvLogFD = Darwin.open(dir.appendingPathComponent("tvos-app.log").path, O_WRONLY | O_CREAT | O_APPEND, 0o644)
 
         // Core output and .NET fatal errors go to stdout/stderr
-        let out = Darwin.open(dir.appendingPathComponent("stdout.log").path, O_WRONLY | O_CREAT | O_TRUNC, 0o644)
+        // Keep the previous run: after a crash the app is relaunched to read the log
+        let stdoutPath = dir.appendingPathComponent("stdout.log").path
+        let prevPath = dir.appendingPathComponent("stdout.prev.log").path
+        Darwin.unlink(prevPath)
+        Darwin.rename(stdoutPath, prevPath)
+        let out = Darwin.open(stdoutPath, O_WRONLY | O_CREAT | O_TRUNC, 0o644)
         if out >= 0 {
             dup2(out, STDOUT_FILENO)
             dup2(out, STDERR_FILENO)

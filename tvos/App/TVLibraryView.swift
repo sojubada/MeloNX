@@ -81,7 +81,12 @@ struct TVLibraryView: View {
             }
             if !TVJIT.isAvailable {
                 Button {
-                    TVJIT.request(automatic: false)
+                    TVJIT.request(automatic: false) { ok in
+                        if !ok {
+                            notice = Notice(title: "JIT를 켜지 못했습니다",
+                                            message: "이 TrollStore는 앱 안에서의 JIT 요청을 받지 않습니다.\nMeloNX를 종료한 뒤 TrollStore 앱 목록에서 MeloNX → \"Open with JIT\"로 실행하세요.")
+                        }
+                    }
                 } label: {
                     Label("JIT 켜기 (TrollStore)", systemImage: "bolt.fill")
                 }
@@ -96,7 +101,7 @@ struct TVLibraryView: View {
                 .disabled(installingFirmware)
             }
             Spacer()
-            Text(TVPaths.documents.path)
+            Text(TVPaths.root.path)
                 .font(.callout.monospaced())
                 .foregroundColor(.secondary)
         }
@@ -107,9 +112,10 @@ struct TVLibraryView: View {
             Text(emulator.loading ? "게임을 찾는 중…" : "게임이 없습니다")
                 .font(.title2.bold())
             Group {
-                Text("파일 브라우저로 게임(.nsp .xci .nro), prod.keys, 펌웨어 .zip을")
-                Text(TVPaths.documents.path)
-                Text("폴더 안 아무 곳에 복사한 뒤 새로고침을 누르세요.")
+                Text("파일 브라우저로 아래 폴더에 복사한 뒤 새로고침을 누르세요.")
+                Text("게임 .nsp .xci .nro → \(TVPaths.roms.path)")
+                Text("prod.keys, title.keys → \(TVPaths.keys.path)")
+                Text("펌웨어 .zip → \(TVPaths.firmware.path)")
                 Text("로그: \(TVPaths.logs.path)")
             }
             .font(.title3)

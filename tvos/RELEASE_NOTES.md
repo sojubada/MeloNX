@@ -5,16 +5,15 @@
 
 ### 설치
 1. `MeloNX.tipa`를 TrollStore로 설치합니다.
-2. 앱을 한 번 실행하면 앱 컨테이너의 `Documents` 안에 아래 폴더가 만들어집니다.
-   홈 화면 오른쪽 위에 전체 경로(`/var/mobile/Containers/Data/Application/<UUID>/Documents`)가 표시됩니다.
+2. 앱을 한 번 실행하면 앱 컨테이너 `Documents` 안에 아래 폴더가 만들어집니다(원본 MeloNX와 같은 구조).
 
-### 파일 넣는 곳 (파일 브라우저로 앱 컨테이너에 복사)
-| 무엇 | 위치 (`Documents/` 기준) |
+### 파일 넣는 곳 (`/var/mobile/Containers/Data/Application/<UUID>/Documents/`)
+| 무엇 | 위치 |
 |---|---|
-| 게임 `.nsp` `.xci` `.nro` | 어디든 (하위 폴더 가능) |
-| `prod.keys` (`title.keys`) | 어디든 (앱이 자동 복사) |
-| 펌웨어 `.zip` | 어디든 → 앱에서 "펌웨어 설치" |
-| 로그 | 앱이 쓸 수 있는 곳(보통 `Library/Caches/MeloNX/Logs/`) — 홈 화면에 경로 표시 |
+| 게임 `.nsp` `.xci` `.nro` | `roms/` (하위 폴더 가능) |
+| `prod.keys` `title.keys` | `system/` |
+| 펌웨어 `.zip` | `firmware/` → 홈 화면 "펌웨어 설치" (**필수**: 없으면 게임이 시작 직후 종료) |
+| 로그 | `Logs/` — `tvos-app.log`, `stdout.log`, 직전 실행 `stdout.prev.log` |
 
 본인 기기에서 덤프한 게임·키·펌웨어만 사용하세요.
 
