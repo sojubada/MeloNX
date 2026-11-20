@@ -2,19 +2,19 @@
 //  TVPaths.swift
 //  MeloNX tvOS
 //
-//  Where everything lives: the upstream MeloNX layout (Core/RyujinxController.swift)
-//  inside the app's own data container:
+//  Where everything lives. The tvOS sandbox denies an app its own Documents/
+//  (device log: "app can write: false", files there invisible), and the
+//  no-sandbox entitlement did not work, so the upstream MeloNX layout is kept
+//  under Library/Caches/MeloNX instead of Documents:
 //
-//      <container>/Documents/
+//      <container>/Library/Caches/MeloNX/
 //          roms/      ← games .nsp / .xci / .nro (sub-folders are fine)
 //          system/    ← prod.keys, title.keys
 //          firmware/  ← firmware .zip (installed from the home screen)
 //          Logs/      ← tvos-app.log, stdout.log (+ stdout.prev.log = previous run)
 //          bis/, games/, profiles/ … ← created by the emulator
 //
-//  The tvOS sandbox denies an app its own Documents, hence the no-sandbox
-//  entitlement. If Documents still cannot be written, Library/Caches/MeloNX
-//  (same sub-folders) is used and the home screen shows that path.
+//  Documents is still tried first, in case a future tvOS / install allows it.
 //
 
 import Foundation

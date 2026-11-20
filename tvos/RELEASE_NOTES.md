@@ -5,9 +5,9 @@
 
 ### 설치
 1. `MeloNX.tipa`를 TrollStore로 설치합니다.
-2. 앱을 한 번 실행하면 앱 컨테이너 `Documents` 안에 아래 폴더가 만들어집니다(원본 MeloNX와 같은 구조).
+2. 앱을 한 번 실행하면 앱 컨테이너 `Library/Caches/MeloNX` 안에 아래 폴더가 만들어집니다(원본 MeloNX와 같은 구조). tvOS는 앱이 자기 `Documents`를 쓰지 못하게 막기 때문입니다.
 
-### 파일 넣는 곳 (`/var/mobile/Containers/Data/Application/<UUID>/Documents/`)
+### 파일 넣는 곳 (`/var/mobile/Containers/Data/Application/<UUID>/Library/Caches/MeloNX/`)
 | 무엇 | 위치 |
 |---|---|
 | 게임 `.nsp` `.xci` `.nro` | `roms/` (하위 폴더 가능) |
