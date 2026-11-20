@@ -161,15 +161,69 @@ extension URL {
 ///   Logs/stdout.log    stdout + stderr: core output and .NET fail-fast messages
 nonisolated(unsafe) private var tvLogFD: Int32 = -1
 
-private let tvFatalSignalHandler: @convention(c) (Int32) -> Void = { sig in
-    // async-signal-safe: stack bytes + write(2), then the default action
+// Crash line for a fatal signal: signal, fault address, pc/lr with the image
+// they fall in (image + offset), then the call stack. Only stack buffers and
+// write(2) for the first lines; dladdr/backtrace are not async-signal-safe but
+// the process is about to die anyway and this is the only record tvOS leaves.
+nonisolated private func tvWrite(_ s: StaticString) {
+    _ = write(tvLogFD, s.utf8Start, s.utf8CodeUnitCount)
+}
+
+nonisolated private func tvWriteHex(_ value: UInt64) {
+    var buf: (UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8,
+              UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8,
+              UInt8, UInt8) = (48, 120, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+    withUnsafeMutableBytes(of: &buf) { p in
+        for i in 0..<16 {
+            let nibble = UInt8((value >> UInt64((15 - i) * 4)) & 0xF)
+            p[2 + i] = nibble < 10 ? 48 + nibble : 87 + nibble
+        }
+        _ = write(tvLogFD, p.baseAddress, 18)
+    }
+}
+
+nonisolated private func tvWriteImage(_ address: UInt64) {
+    var info = Dl_info()
+    guard address != 0, let ptr = UnsafeRawPointer(bitPattern: UInt(address)),
+          dladdr(ptr, &info) != 0, let name = info.dli_fname else { return }
+    tvWrite(" in ")
+    // last path component of the image
+    var start = name
+    var p = name
+    while p.pointee != 0 { if p.pointee == 47 { start = p + 1 }; p += 1 }
+    _ = write(tvLogFD, start, strlen(start))
+    tvWrite(" +")
+    tvWriteHex(address &- UInt64(UInt(bitPattern: info.dli_fbase)))
+}
+
+private let tvFatalSignalHandler: @convention(c) (Int32, UnsafeMutablePointer<__siginfo>?, UnsafeMutableRawPointer?) -> Void = { sig, info, uc in
     if tvLogFD >= 0 {
-        // "FATAL signal NN\n"
+        // "FATAL signal NN"
         var line: (UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8,
-                   UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8) =
+                   UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8) =
             (70, 65, 84, 65, 76, 32, 115, 105, 103, 110, 97, 108, 32,
-             UInt8(48 + (sig / 10) % 10), UInt8(48 + sig % 10), 10)
-        withUnsafeBytes(of: &line) { _ = write(tvLogFD, $0.baseAddress, 16) }
+             UInt8(48 + (sig / 10) % 10), UInt8(48 + sig % 10))
+        withUnsafeBytes(of: &line) { _ = write(tvLogFD, $0.baseAddress, 15) }
+
+        if let info {
+            tvWrite(" addr ")
+            tvWriteHex(UInt64(UInt(bitPattern: info.pointee.si_addr)))
+        }
+        if let uc, let mc = uc.assumingMemoryBound(to: ucontext_t.self).pointee.uc_mcontext {
+            let pc = mc.pointee.__ss.__pc
+            let lr = mc.pointee.__ss.__lr
+            tvWrite("\n  pc ")
+            tvWriteHex(pc)
+            tvWriteImage(pc)
+            tvWrite("\n  lr ")
+            tvWriteHex(lr)
+            tvWriteImage(lr)
+        }
+        tvWrite("\n  stack:\n")
+        withUnsafeTemporaryAllocation(of: UnsafeMutableRawPointer?.self, capacity: 48) { frames in
+            let n = backtrace(frames.baseAddress, 48)
+            backtrace_symbols_fd(frames.baseAddress, n, tvLogFD)
+        }
     }
     signal(sig, SIG_DFL)
     raise(sig)
@@ -203,7 +257,11 @@ enum TVLog {
         // Installed before the core starts; the core and .NET install their own
         // handlers on top and chain to these only for faults they do not handle.
         for sig in [SIGABRT, SIGSEGV, SIGBUS, SIGILL, SIGTRAP, SIGFPE] {
-            signal(sig, tvFatalSignalHandler)
+            var action = sigaction()
+            action.__sigaction_u.__sa_sigaction = tvFatalSignalHandler
+            action.sa_flags = SA_SIGINFO
+            sigemptyset(&action.sa_mask)
+            sigaction(sig, &action, nil)
         }
     }
 
