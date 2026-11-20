@@ -267,6 +267,10 @@ jobs:
         run: |
           set -e
           TAG="${INPUT_TAG:-${EVENT_TAG:-${GITHUB_REF#refs/tags/}}}"
+          # A tag cannot contain spaces ("tvOS-v2.7.0 b16" -> HTTP 422): use '-'
+          TAG="$(printf '%s' "$TAG" | sed -E 's/^[[:space:]]+|[[:space:]]+$//g; s/[[:space:]]+/-/g')"
+          git check-ref-format "refs/tags/$TAG" || { echo "::error::invalid release tag '$TAG'"; exit 1; }
+          echo "tag: $TAG"
           if gh release view "$TAG" >/dev/null 2>&1; then
             [ -n "$(gh release view "$TAG" --json body -q .body)" ] || gh release edit "$TAG" --notes-file tvos/RELEASE_NOTES.md
             gh release upload "$TAG" dist/MeloNX.tipa dist/MeloNX.ipa --clobber
