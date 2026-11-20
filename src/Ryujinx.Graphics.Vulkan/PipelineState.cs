@@ -1,6 +1,8 @@
 using Ryujinx.Common.Memory;
 using Silk.NET.Vulkan;
+using Ryujinx.Common.Logging;
 using System;
+using System.Threading;
 using System.Numerics;
 
 namespace Ryujinx.Graphics.Vulkan
@@ -308,6 +310,8 @@ namespace Ryujinx.Graphics.Vulkan
 
         public bool HasTessellationControlShader;
         public NativeArray<PipelineShaderStageCreateInfo> Stages;
+
+        private static int _loggedPipelineFailures;
         public PipelineLayout PipelineLayout;
         public SpecData SpecializationData;
 
@@ -458,6 +462,33 @@ namespace Ryujinx.Graphics.Vulkan
 
             if (isMoltenVk)
             {
+                // MoltenVK dereferences the vertex stage unconditionally while building the
+                // Metal render pipeline (MVKGraphicsPipeline::newMTLRenderPipelineDescriptor
+                // reads pVertexSS->pName): a graphics pipeline without a vertex stage crashes
+                // the process (Apple TV crash log, SIGSEGV addr 0x20). Treat it as a failed
+                // pipeline instead; the draw is skipped.
+                bool hasVertexStage = false;
+                Span<PipelineShaderStageCreateInfo> stages = Stages.AsSpan();
+
+                for (int i = 0; i < StagesCount; i++)
+                {
+                    if (stages[i].Stage == ShaderStageFlags.VertexBit && stages[i].Module.Handle != 0)
+                    {
+                        hasVertexStage = true;
+                        break;
+                    }
+                }
+
+                if (!hasVertexStage)
+                {
+                    if (cachePipelineFailure)
+                    {
+                        program.AddGraphicsPipeline(ref Internal, null);
+                    }
+
+                    return null;
+                }
+
                 UpdateVertexAttributeDescriptions(gd);
             }
 
@@ -763,6 +794,19 @@ namespace Ryujinx.Graphics.Vulkan
                 }
                 else if (result.IsError)
                 {
+                    if (isMoltenVk && Interlocked.Increment(ref _loggedPipelineFailures) <= 20)
+                    {
+                        // Diagnostics for Metal pipeline failures such as
+                        // "Cannot convert attribute from MTLAttributeFormatFloat to int4".
+                        System.Text.StringBuilder sb = new();
+                        Span<VertexInputAttributeDescription> attrs = _vertexAttributeDescriptions2.AsSpan();
+                        for (int i = 0; i < VertexAttributeDescriptionsCount; i++)
+                        {
+                            sb.Append($" {attrs[i].Location}:{attrs[i].Format}@b{attrs[i].Binding}");
+                        }
+                        Logger.Warning?.Print(LogClass.Gpu, $"Graphics pipeline failed ({result}); vertex attributes:{sb}");
+                    }
+
                     if (cachePipelineFailure)
                     {
                         program.AddGraphicsPipeline(ref Internal, null);
