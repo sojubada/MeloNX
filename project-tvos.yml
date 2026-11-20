@@ -73,13 +73,14 @@ targets:
       - sdk: AVFoundation.framework
       - sdk: MetalKit.framework
 
-    info:
-      path: tvos/Info-tvOS.plist
-
     settings:
       base:
         PRODUCT_NAME: MeloNX                 # module name must stay MeloNX (Ryujinx.swift calls MeloNX.initialize() etc.)
         PRODUCT_BUNDLE_IDENTIFIER: com.sojubada.melonx.tvos
+        # Use the hand-written plist as is. (XcodeGen's `info:` key would regenerate
+        # and overwrite it, dropping the game-controller keys.)
+        INFOPLIST_FILE: tvos/Info-tvOS.plist
+        GENERATE_INFOPLIST_FILE: NO
         MARKETING_VERSION: "2.7.0"
         CURRENT_PROJECT_VERSION: "1"
         TVOS_DEPLOYMENT_TARGET: "16.0"

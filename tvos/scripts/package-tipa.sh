@@ -47,6 +47,15 @@ while IFS= read -r f; do
 done < <(find "$WORK/$NAME.app/Frameworks" -type f \( -name "*.dylib" -o -perm -u+x \) 2>/dev/null | grep -vE "\.(plist|nib|car|png|json)$" || true)
 [ "$BAD" -eq 0 ] || { echo "[!] 위 바이너리들을 appletvos SDK로 다시 빌드하십시오." >&2; exit 1; }
 
+# Info.plist 가 tvos/Info-tvOS.plist 그대로인지 (생성기로 덮어써지지 않았는지)
+echo "==> Info.plist 확인"
+PL="$WORK/$NAME.app/Info.plist"
+for key in CFBundleIdentifier CFBundleShortVersionString CFBundleVersion GCSupportedGameControllers GCRequiresControllerUserInteraction UIDeviceFamily; do
+  /usr/libexec/PlistBuddy -c "Print :$key" "$PL" >/dev/null 2>&1 \
+    || { echo "[!] Info.plist 에 $key 가 없습니다" >&2; exit 1; }
+done
+echo "    $(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$PL") $(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$PL") ($(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$PL"))"
+
 # 모든 바이너리의 의존 라이브러리가 시스템(/usr/lib, /System) 이거나 번들 안
 # (@rpath = @executable_path/Frameworks) 에 실제로 있어야 한다. 하나라도 빌드
 # 머신의 절대 경로를 가리키면 dyld 가 main() 전에 앱을 죽인다.
