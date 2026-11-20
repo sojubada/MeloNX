@@ -125,14 +125,48 @@ enum TVMemory {
     private(set) static var requestedLimitMB = 0
     private(set) static var raisedLimit = false
 
+    private static let MEMORYSTATUS_CMD_SET_MEMLIMIT_PROPERTIES: UInt32 = 7
+
+    /// memorystatus_memlimit_properties_t
+    private struct MemlimitProperties {
+        var activeMB: Int32
+        var activeAttr: UInt32
+        var inactiveMB: Int32
+        var inactiveAttr: UInt32
+    }
+
     /// Ask for most of physical RAM, leaving room for tvOS itself.
-    /// On a 4 GB Apple TV 4K (3rd gen) that is 3,584 MB.
-    static func raiseJetsamLimit() {
+    /// On a 4 GB Apple TV 4K (3rd gen) that is 3,470 MB.
+    ///
+    /// RunningBoard re-applies the app's own limit when the app changes state
+    /// (launch → foreground, JIT attach, resume). Device log: 3,464 MB available
+    /// right after raising at launch, but only 2,067 MB at game start and the
+    /// core saw a 2,098 MiB budget; the game was then killed by jetsam with no
+    /// crash report. So the limit is set as the active AND inactive properties
+    /// (what RunningBoard itself sets) plus the task limit, and re-applied on
+    /// activation, at game start and periodically while a game runs.
+    @discardableResult
+    static func raiseJetsamLimit(_ reason: String = "launch") -> Bool {
         let leaveForSystem = 512
         let target = max(physicalMB - leaveForSystem, 1024)
         requestedLimitMB = target
-        let result = memorystatus_control(MEMORYSTATUS_CMD_SET_JETSAM_TASK_LIMIT, getpid(), UInt32(target), nil, 0)
-        raisedLimit = (result == 0)
-        TVLog.write("jetsam limit \(target) MB → \(raisedLimit ? "ok" : "refused (errno \(errno))"); physical \(physicalMB) MB, available now \(availableMB) MB")
+        let before = availableMB
+
+        var props = MemlimitProperties(activeMB: Int32(target), activeAttr: 1,   // 1 = FATAL (hard limit, as RunningBoard sets)
+                                       inactiveMB: Int32(target), inactiveAttr: 1)
+        let r1 = withUnsafeMutablePointer(to: &props) {
+            memorystatus_control(MEMORYSTATUS_CMD_SET_MEMLIMIT_PROPERTIES, getpid(), 0,
+                                 UnsafeMutableRawPointer($0), MemoryLayout<MemlimitProperties>.size)
+        }
+        let e1 = errno
+        let r2 = memorystatus_control(MEMORYSTATUS_CMD_SET_JETSAM_TASK_LIMIT, getpid(), UInt32(target), nil, 0)
+        let e2 = errno
+        raisedLimit = (r1 == 0 || r2 == 0)
+
+        let after = availableMB
+        if reason != "watch" || after > before + 64 {
+            TVLog.write("jetsam limit \(target) MB [\(reason)] props \(r1 == 0 ? "ok" : "errno \(e1)"), task \(r2 == 0 ? "ok" : "errno \(e2)"); available \(before) → \(after) MB")
+        }
+        return raisedLimit
     }
 }

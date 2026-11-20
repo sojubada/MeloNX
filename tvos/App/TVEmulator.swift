@@ -66,6 +66,17 @@ final class TVEmulator: ObservableObject {
     }
 
     private var threadActive = false
+    private var memoryWatch: DispatchSourceTimer?
+
+    /// RunningBoard may lower the limit again while the game runs; put it back.
+    private func startMemoryWatch() {
+        memoryWatch?.cancel()
+        let timer = DispatchSource.makeTimerSource(queue: .main)
+        timer.schedule(deadline: .now() + 5, repeating: 5)
+        timer.setEventHandler { TVMemory.raiseJetsamLimit("watch") }
+        timer.resume()
+        memoryWatch = timer
+    }
 
     private init() {}
 
@@ -145,6 +156,8 @@ final class TVEmulator: ObservableObject {
         options.loggingEnableError = true             // errors go to Logs/stdout.log
 
         TVControllers.shared.attachAll()
+        TVMemory.raiseJetsamLimit("game start")
+        startMemoryWatch()
         TVLog.write("start \(game.titleName) [\(game.titleId)] \(game.fileURL.lastPathComponent); pads: \(TVControllers.shared.summary); available \(TVMemory.availableMB) MB")
 
         threadActive = true
@@ -157,6 +170,8 @@ final class TVEmulator: ObservableObject {
             TVLog.write("emulation ended with code \(code)")
 
             DispatchQueue.main.async {
+                self.memoryWatch?.cancel()
+                self.memoryWatch = nil
                 self.threadActive = false
                 TVControllers.shared.detachAll()
                 UIApplication.shared.isIdleTimerDisabled = false

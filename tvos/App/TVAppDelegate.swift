@@ -51,6 +51,7 @@ final class TVAppDelegate: UIResponder, UIApplicationDelegate {
     /// Launched from the icon: no debugger yet, so ask TrollStore to attach
     /// (the iPad "Open with JIT" step, done for the user). Rate limited in TVJIT.
     func applicationDidBecomeActive(_ application: UIApplication) {
+        TVMemory.raiseJetsamLimit("active")
         let ok = TVJIT.isAvailable
         TVLog.write("active; JIT \(ok ? "on" : "off")")
         if !ok { TVJIT.request(automatic: true) }
