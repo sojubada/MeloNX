@@ -431,11 +431,11 @@ namespace Ryujinx.Graphics.Vulkan
 
                 if (to)
                 {
-                    _gd.Api.CmdCopyImageToBuffer(commandBuffer, image, ImageLayout.General, buffer, 1, in region);
+                    if (image.Handle != 0 && buffer.Handle != 0) _gd.Api.CmdCopyImageToBuffer(commandBuffer, image, ImageLayout.General, buffer, 1, in region);
                 }
                 else
                 {
-                    _gd.Api.CmdCopyBufferToImage(commandBuffer, buffer, image, ImageLayout.General, 1, in region);
+                    if (image.Handle != 0 && buffer.Handle != 0) _gd.Api.CmdCopyBufferToImage(commandBuffer, buffer, image, ImageLayout.General, 1, in region);
                 }
 
                 offset += mipSize;
