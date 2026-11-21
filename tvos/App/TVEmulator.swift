@@ -92,6 +92,13 @@ final class TVEmulator: ObservableObject {
             if ticks == 5 || ticks % 30 == 15 || (available < Self.lowMemoryMB && !self.lowMemory) {
                 DispatchQueue.global(qos: .utility).async { TVLog.write(TVMemory.regionSummary()) }
             }
+            // tvOS sends no system memory-pressure event while we are under our own
+            // raised limit, so the GPU caches were never trimmed (log: GPU memory
+            // +375 MB in 90 s, no trim). Report it ourselves; the core throttles
+            // trims to one per 2 s and only evicts textures not in use.
+            if available < 700 {
+                report_memory_pressure(available < 400 ? 1 : 0)
+            }
             let low = available < Self.lowMemoryMB
             if low != self.lowMemory {
                 self.lowMemory = low

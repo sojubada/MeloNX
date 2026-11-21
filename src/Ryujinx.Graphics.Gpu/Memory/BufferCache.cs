@@ -43,7 +43,8 @@ namespace Ryujinx.Graphics.Gpu.Memory
         /// Share of the process' whole memory budget this cache may take when the host holds us to
         /// one. Smaller than the texture cache's share, which is the larger consumer of the two.
         /// </summary>
-        private const int ConstrainedMemoryDivisor = 12;
+        // tvOS: see AutoDeleteCache (~200 MiB of 3.6 GiB)
+        private static readonly int ConstrainedMemoryDivisor = OperatingSystem.IsTvOS() ? 18 : 12;
 
         private readonly GpuContext _context;
         private readonly PhysicalMemory _physicalMemory;

@@ -62,7 +62,8 @@ namespace Ryujinx.Graphics.Gpu.Image
 
         private const float MemoryScaleFactor = 0.50f;
         private const int UnifiedMemoryDivisor = 16;
-        private const int ConstrainedMemoryDivisor = 8;
+        // tvOS: 4 GB Apple TV, guest RAM shares the same budget, so keep the unused-texture cache smaller (~300 MiB of 3.6 GiB)
+        private static readonly int ConstrainedMemoryDivisor = OperatingSystem.IsTvOS() ? 12 : 8;
         private ulong _maxCacheMemoryUsage = DefaultTextureSizeCapacity;
 
         private readonly LinkedList<Texture> _textures;

@@ -182,8 +182,8 @@ enum TVMemory {
             case 21: group = "IOKit"
             case 30: group = "stack"
             case 51: group = "CoreAnimation"
-            case 82: group = "GPU"
-            case 83: group = "IOSurface"
+            case 100: group = "GPU"          // VM_MEMORY_IOACCELERATOR
+            case 88: group = "IOSurface"
             default: group = "tag\(tag)"
             }
             byGroup[group, default: 0] += bytes
