@@ -105,8 +105,10 @@ struct TVLibraryView: View {
                     Label("JIT 켜기 (TrollStore)", systemImage: "bolt.fill")
                 }
             }
-            if let firmware = TVPaths.firmwareCandidate {
-                // Also offered when firmware is installed: a newer .zip updates it
+            if let firmware = TVPaths.firmwareCandidate,
+               emulator.firmwareVersion.isEmpty || installingFirmware || !FirmwareRecord.isInstalled(firmware) {
+                // Offered when nothing is installed, or for a .zip other than the one
+                // already installed from (a newer firmware to update to)
                 Button {
                     install(firmware)
                 } label: {
@@ -157,6 +159,7 @@ struct TVLibraryView: View {
             if let error {
                 notice = Notice(title: "펌웨어 설치 실패", message: error)
             } else {
+                FirmwareRecord.remember(url)
                 notice = Notice(title: "펌웨어 설치 완료", message: emulator.firmwareVersion)
             }
         }
@@ -232,5 +235,26 @@ private struct GameTile: View {
             .frame(width: 300)
             .padding(.bottom, 16)
         }
+    }
+}
+
+/// Which firmware .zip was last installed (name, size, date), so the install
+/// button disappears afterwards and comes back only for a different file.
+private enum FirmwareRecord {
+    private static let key = "tvInstalledFirmwareZip"
+
+    private static func fingerprint(_ url: URL) -> String {
+        let values = try? url.resourceValues(forKeys: [.fileSizeKey, .contentModificationDateKey])
+        let size = values?.fileSize ?? -1
+        let date = values?.contentModificationDate?.timeIntervalSince1970 ?? 0
+        return "\(url.lastPathComponent)|\(size)|\(Int(date))"
+    }
+
+    static func isInstalled(_ url: URL) -> Bool {
+        UserDefaults.standard.string(forKey: key) == fingerprint(url)
+    }
+
+    static func remember(_ url: URL) {
+        UserDefaults.standard.set(fingerprint(url), forKey: key)
     }
 }
