@@ -18,6 +18,7 @@
 
 import Foundation
 import GameController
+import Melo_Controller
 import Combine
 
 final class TVControllers: ObservableObject {
