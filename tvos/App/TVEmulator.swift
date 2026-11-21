@@ -59,6 +59,10 @@ final class TVEmulator: ObservableObject {
     @Published private(set) var state: State = .idle
     @Published private(set) var firmwareVersion: String = ""
     @Published private(set) var loading = false
+    /// Under ~300 MB left the game is close to being closed by tvOS: the game
+    /// screen shows a "save now" hint (TVEmulationViewController).
+    @Published private(set) var lowMemory = false
+    static let lowMemoryMB = 300
 
     var isRunning: Bool {
         if case .running = state { return true }
@@ -79,7 +83,16 @@ final class TVEmulator: ObservableObject {
             ticks += 1
             // Every 30 s: a game killed by jetsam leaves no crash line, so the
             // last of these shows how close it was.
-            if ticks % 30 == 0 { TVLog.write("mem: available \(TVMemory.availableMB) MB") }
+            let available = TVMemory.availableMB
+            if ticks % 30 == 0 {
+                // footprint = everything charged to the app; Metal = GPU share of it
+                TVLog.write("mem: available \(available) MB, footprint \(TVMemory.footprintMB) MB, Metal \(TVMemory.metalMB) MB")
+            }
+            let low = available < Self.lowMemoryMB
+            if low != self.lowMemory {
+                self.lowMemory = low
+                TVLog.write(low ? "low memory warning shown (\(available) MB)" : "low memory warning cleared")
+            }
         }
         timer.resume()
         memoryWatch = timer
@@ -177,6 +190,7 @@ final class TVEmulator: ObservableObject {
             DispatchQueue.main.async {
                 self.memoryWatch?.cancel()
                 self.memoryWatch = nil
+                self.lowMemory = false
                 self.threadActive = false
                 TVControllers.shared.detachAll()
                 UIApplication.shared.isIdleTimerDisabled = false

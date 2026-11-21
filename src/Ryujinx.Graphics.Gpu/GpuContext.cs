@@ -401,8 +401,11 @@ namespace Ryujinx.Graphics.Gpu
 
             string headroom = available != 0 ? $", {available / TrimMiB} MiB available" : string.Empty;
 
+            GCMemoryInfo gc = GC.GetGCMemoryInfo();
+
             Logger.Info?.Print(LogClass.Gpu,
-                $"Host reported {level} memory pressure{headroom}, released {evicted / TrimMiB} MiB of GPU caches");
+                $"Host reported {level} memory pressure{headroom}, released {evicted / TrimMiB} MiB of GPU caches" +
+                $" (.NET heap {gc.HeapSizeBytes / (long)TrimMiB} MiB, committed {gc.TotalCommittedBytes / (long)TrimMiB} MiB)");
         }
 
         /// <summary>

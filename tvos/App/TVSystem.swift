@@ -21,6 +21,7 @@ import Foundation
 import Darwin
 import os
 import UIKit
+import Metal
 
 // MARK: - JIT
 
@@ -117,6 +118,25 @@ enum TVMemory {
     }
 
     /// Headroom the emulator may use right now, as reported by the OS.
+    private static let metalDevice = MTLCreateSystemDefaultDevice()
+
+    /// What the kernel charges against the memory limit (TASK_VM_INFO phys_footprint).
+    static var footprintMB: Int {
+        var info = task_vm_info_data_t()
+        var count = mach_msg_type_number_t(MemoryLayout<task_vm_info_data_t>.size / MemoryLayout<integer_t>.size)
+        let kr = withUnsafeMutablePointer(to: &info) {
+            $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
+                task_info(mach_task_self_, task_flavor_t(TASK_VM_INFO), $0, &count)
+            }
+        }
+        return kr == KERN_SUCCESS ? Int(info.phys_footprint / 1_048_576) : -1
+    }
+
+    /// Metal allocations of this process (textures, buffers, pipelines via MoltenVK).
+    static var metalMB: Int {
+        Int((metalDevice?.currentAllocatedSize ?? 0) / 1_048_576)
+    }
+
     static var availableMB: Int {
         Int(os_proc_available_memory() / 1_048_576)
     }

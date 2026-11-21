@@ -29,6 +29,19 @@ final class TVEmulationViewController: GCEventViewController {
     private var cancellables: Set<AnyCancellable> = []
     private var connectObserver: NSObjectProtocol?
     private var disconnectObserver: NSObjectProtocol?
+    private var lowMemoryCancellable: AnyCancellable?
+    private let lowMemoryLabel: UILabel = {
+        let label = UILabel()
+        label.text = "  메모리가 거의 다 찼습니다. 지금 게임에서 저장하세요 — 곧 종료될 수 있습니다.  "
+        label.font = .systemFont(ofSize: 28, weight: .semibold)
+        label.textColor = .white
+        label.backgroundColor = UIColor.systemRed.withAlphaComponent(0.85)
+        label.layer.cornerRadius = 12
+        label.clipsToBounds = true
+        label.isHidden = true
+        label.translatesAutoresizingMaskIntoConstraints = false
+        return label
+    }()
 
     init(game: GameInfo) {
         self.game = game
@@ -48,6 +61,16 @@ final class TVEmulationViewController: GCEventViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         controllerUserInteractionEnabled = false
+
+        view.addSubview(lowMemoryLabel)
+        NSLayoutConstraint.activate([
+            lowMemoryLabel.topAnchor.constraint(equalTo: view.topAnchor, constant: 40),
+            lowMemoryLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            lowMemoryLabel.heightAnchor.constraint(equalToConstant: 56),
+        ])
+        lowMemoryCancellable = TVEmulator.shared.$lowMemory
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] low in self?.lowMemoryLabel.isHidden = !low }
 
         let metalLayer = metalView.metalLayer
         metalLayer.device = MTLCreateSystemDefaultDevice()
