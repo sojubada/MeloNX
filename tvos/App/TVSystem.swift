@@ -141,6 +141,64 @@ enum TVMemory {
         Int(os_proc_available_memory() / 1_048_576)
     }
 
+    /// Dirty + compressed memory of this process grouped by VM tag, to see what the
+    /// footprint is made of (guest RAM, .NET heap, malloc, GPU, ...). Walks the
+    /// whole map, so call it off the main thread. Shared objects mapped more than
+    /// once (guest RAM aliases) are counted once.
+    static func regionSummary() -> String {
+        var address: vm_address_t = 0
+        var size: vm_size_t = 0
+        var depth: natural_t = 0
+        let page = UInt64(vm_page_size)
+        var byGroup: [String: UInt64] = [:]
+        var seenShared = Set<UInt32>()
+        var largest: (bytes: UInt64, tag: UInt32, shared: Bool) = (0, 0, false)
+        var regions = 0
+
+        while regions < 200_000 {
+            var info = vm_region_submap_info_data_64_t()
+            var count = mach_msg_type_number_t(MemoryLayout<vm_region_submap_info_data_64_t>.size / MemoryLayout<natural_t>.size)
+            let kr = withUnsafeMutablePointer(to: &info) {
+                $0.withMemoryRebound(to: Int32.self, capacity: Int(count)) {
+                    vm_region_recurse_64(mach_task_self_, &address, &size, &depth, $0, &count)
+                }
+            }
+            if kr != KERN_SUCCESS { break }
+            regions += 1
+            if info.is_submap != 0 { depth += 1; continue }
+            defer { address &+= size }
+
+            let bytes = (UInt64(info.pages_dirtied) + UInt64(info.pages_swapped_out)) * page
+            if bytes == 0 { continue }
+            let mode = Int32(info.share_mode)
+            let shared = mode == SM_SHARED || mode == SM_TRUESHARED || mode == SM_SHARED_ALIASED
+            if shared && !seenShared.insert(info.object_id).inserted { continue }
+
+            let tag = info.user_tag
+            let group: String
+            switch tag {
+            case 0: group = shared ? "anon-shared" : "anon"
+            case 1...13: group = "malloc"
+            case 21: group = "IOKit"
+            case 30: group = "stack"
+            case 51: group = "CoreAnimation"
+            case 82: group = "GPU"
+            case 83: group = "IOSurface"
+            default: group = "tag\(tag)"
+            }
+            byGroup[group, default: 0] += bytes
+            if bytes > largest.bytes { largest = (bytes, tag, shared) }
+        }
+
+        let mb: (UInt64) -> UInt64 = { $0 / 1_048_576 }
+        let parts = byGroup.sorted { $0.value > $1.value }
+            .filter { mb($0.value) >= 8 }
+            .prefix(8)
+            .map { "\($0.key) \(mb($0.value))" }
+            .joined(separator: ", ")
+        return "mem map (MB): \(parts); largest object \(mb(largest.bytes)) MB tag \(largest.tag)\(largest.shared ? " shared" : ""); \(regions) regions"
+    }
+
     /// The limit we asked for at launch and whether the kernel accepted it.
     private(set) static var requestedLimitMB = 0
     private(set) static var raisedLimit = false
@@ -156,7 +214,7 @@ enum TVMemory {
     }
 
     /// Ask for most of physical RAM, leaving room for tvOS itself.
-    /// On a 4 GB Apple TV 4K (3rd gen) that is 3,470 MB.
+    /// On a 4 GB Apple TV 4K (3rd gen) that is 3,598 MB (was 3,470).
     ///
     /// RunningBoard re-applies the app's own limit when the app changes state
     /// (launch → foreground, JIT attach, resume). Device log: 3,464 MB available
@@ -167,7 +225,7 @@ enum TVMemory {
     /// activation, at game start and periodically while a game runs.
     @discardableResult
     static func raiseJetsamLimit(_ reason: String = "launch") -> Bool {
-        let leaveForSystem = 512
+        let leaveForSystem = 384     // 3,598 MB on a 4 GB Apple TV
         let target = max(physicalMB - leaveForSystem, 1024)
         requestedLimitMB = target
         let before = availableMB
