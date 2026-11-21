@@ -58,7 +58,22 @@ final class TVAppDelegate: UIResponder, UIApplicationDelegate {
         if !ok { TVJIT.request(automatic: true) }
     }
 
+    // Lifecycle lines: a game that vanishes with no crash report was either sent
+    // to the background (tvOS then reclaims its memory silently) or exited.
+    func applicationDidEnterBackground(_ application: UIApplication) {
+        TVLog.write("background; available \(TVMemory.availableMB) MB")
+    }
+
+    func applicationWillEnterForeground(_ application: UIApplication) {
+        TVLog.write("foreground")
+    }
+
+    func applicationWillTerminate(_ application: UIApplication) {
+        TVLog.write("will terminate")
+    }
+
     func applicationWillResignActive(_ application: UIApplication) {
+        TVLog.write("resign active (menu/home/screensaver)")
         // Home button / screensaver: freeze the game behind the pause menu
         (window?.rootViewController?.presentedViewController as? TVEmulationViewController)?.showPauseMenu()
     }
