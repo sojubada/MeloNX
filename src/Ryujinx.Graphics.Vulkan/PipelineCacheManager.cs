@@ -12,8 +12,11 @@ namespace Ryujinx.Graphics.Vulkan
     {
         private const int SaveInterval = 64;
         private const long MinimumSaveIntervalMs = 15_000;
-        private const long TotalCacheBudget = 256L * 1024 * 1024;
-        private const long MainCacheBudget = TotalCacheBudget / 2;
+        // tvOS (4 GB Apple TV): saving serialises the whole cache into memory
+        // (vkGetPipelineCacheData), so a 256 MiB budget means spikes of that size
+        // while a game is already near the jetsam limit.
+        private static readonly long TotalCacheBudget = (OperatingSystem.IsTvOS() ? 64L : 256L) * 1024 * 1024;
+        private static readonly long MainCacheBudget = TotalCacheBudget / 2;
         private const long MinimumCacheBudget = 16L * 1024 * 1024;
         private const long InitialBytesPerPipeline = 128 * 1024;
 
