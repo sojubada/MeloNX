@@ -105,11 +105,13 @@ struct TVLibraryView: View {
                     Label("JIT 켜기 (TrollStore)", systemImage: "bolt.fill")
                 }
             }
-            if let firmware = TVPaths.firmwareCandidate, emulator.firmwareVersion.isEmpty || installingFirmware {
+            if let firmware = TVPaths.firmwareCandidate {
+                // Also offered when firmware is installed: a newer .zip updates it
                 Button {
                     install(firmware)
                 } label: {
-                    Label(installingFirmware ? "펌웨어 설치 중…" : "펌웨어 설치: \(firmware.lastPathComponent)",
+                    Label(installingFirmware ? "펌웨어 설치 중…"
+                          : (emulator.firmwareVersion.isEmpty ? "펌웨어 설치: " : "펌웨어 재설치/업데이트: ") + firmware.lastPathComponent,
                           systemImage: "square.and.arrow.down")
                 }
                 .disabled(installingFirmware)

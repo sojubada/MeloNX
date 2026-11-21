@@ -39,6 +39,7 @@ struct TVSettingsValues: Codable, Equatable {
 
     // Input
     var player1Type: Int = ControllerType.proController.id
+    var swapFaceButtons = false
 
     // Menu
     var menuMusic = true
@@ -63,12 +64,25 @@ final class TVSettings: ObservableObject {
     }
 
     private init() {
-        if let data = UserDefaults.standard.data(forKey: Self.key),
-           let decoded = try? JSONDecoder().decode(TVSettingsValues.self, from: data) {
-            values = decoded
-        } else {
-            values = TVSettingsValues()
+        values = Self.load(UserDefaults.standard.data(forKey: Self.key))
+    }
+
+    /// Saved settings merged over the defaults, so keys added by a newer build
+    /// (e.g. swapFaceButtons) do not reset everything else.
+    private static func load(_ data: Data?) -> TVSettingsValues {
+        let defaults = TVSettingsValues()
+        guard let data,
+              let saved = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+              let base = try? JSONEncoder().encode(defaults),
+              var merged = (try? JSONSerialization.jsonObject(with: base)) as? [String: Any] else {
+            return defaults
         }
+        merged.merge(saved) { _, new in new }
+        guard let mergedData = try? JSONSerialization.data(withJSONObject: merged),
+              let values = try? JSONDecoder().decode(TVSettingsValues.self, from: mergedData) else {
+            return defaults
+        }
+        return values
     }
 
     private func save() {

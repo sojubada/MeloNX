@@ -28,6 +28,7 @@ final class TVMenuMusic {
     private var filePlayer: AVAudioPlayer?
     private var appActive = true
     private var started = false
+    private var rendering = false
     private var cancellables = Set<AnyCancellable>()
 
     private init() {}
@@ -63,14 +64,7 @@ final class TVMenuMusic {
             self?.update()
         }
 
-        let format = self.format
-        DispatchQueue.global(qos: .utility).async {
-            let rendered = TVMenuMusic.render(format: format)
-            DispatchQueue.main.async {
-                self.buffer = rendered
-                self.update()
-            }
-        }
+        update()
     }
 
     // MARK: Play / pause
@@ -115,7 +109,10 @@ final class TVMenuMusic {
         filePlayer?.stop()
         filePlayer = nil
 
-        guard let buffer else { return }
+        guard let buffer else {
+            renderBuiltInTune()        // only when no file of your own is used
+            return
+        }
         node.volume = volume
         if !engine.isRunning {
             do { try engine.start() } catch {
@@ -131,9 +128,31 @@ final class TVMenuMusic {
     }
 
     private func pause() {
-        filePlayer?.pause()
-        if node.isPlaying { node.pause() }
-        if engine.isRunning { engine.pause() }
+        if TVEmulator.shared.isRunning {
+            // A game owns the audio hardware now: release ours completely
+            filePlayer?.stop()
+            node.stop()
+            scheduled = false
+            if engine.isRunning { engine.stop() }
+        } else {
+            filePlayer?.pause()
+            if node.isPlaying { node.pause() }
+            if engine.isRunning { engine.pause() }
+        }
+    }
+
+    private func renderBuiltInTune() {
+        guard !rendering else { return }
+        rendering = true
+        let format = self.format
+        DispatchQueue.global(qos: .utility).async {
+            let rendered = TVMenuMusic.render(format: format)
+            DispatchQueue.main.async {
+                self.buffer = rendered
+                self.rendering = false
+                self.update()
+            }
+        }
     }
 
     // MARK: Built-in tune

@@ -3,7 +3,8 @@
 <plist version="1.0">
 <dict>
 	<!-- MeloNX tvOS (TrollStore). No scene manifest: TVAppDelegate owns the window.
-	     Data lives in the app container's Documents/ (see tvos/App/TVPaths.swift). -->
+	     Data lives in the app container's Library/Caches/MeloNX/ (tvOS denies the app
+	     its own Documents/; see tvos/App/TVPaths.swift). -->
 	<key>CFBundleDevelopmentRegion</key>
 	<string>ko</string>
 	<key>CFBundleExecutable</key>

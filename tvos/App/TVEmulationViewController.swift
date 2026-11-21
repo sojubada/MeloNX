@@ -28,6 +28,7 @@ final class TVEmulationViewController: GCEventViewController {
     private var pauseMenuShown = false
     private var cancellables: Set<AnyCancellable> = []
     private var connectObserver: NSObjectProtocol?
+    private var disconnectObserver: NSObjectProtocol?
 
     init(game: GameInfo) {
         self.game = game
@@ -66,10 +67,18 @@ final class TVEmulationViewController: GCEventViewController {
         connectObserver = NotificationCenter.default.addObserver(forName: .GCControllerDidConnect, object: nil, queue: .main) { [weak self] _ in
             self?.installPauseTriggers()
         }
+        // A pad that turns off mid-game (battery) leaves its last input held; pause
+        // instead, like the Switch does when a controller disconnects.
+        disconnectObserver = NotificationCenter.default.addObserver(forName: .GCControllerDidDisconnect, object: nil, queue: .main) { [weak self] note in
+            guard let pad = note.object as? GCController, pad.extendedGamepad != nil else { return }
+            TVLog.write("controller disconnected during play: \(pad.vendorName ?? "?"); pausing")
+            self?.showPauseMenu()
+        }
     }
 
     deinit {
         if let connectObserver { NotificationCenter.default.removeObserver(connectObserver) }
+        if let disconnectObserver { NotificationCenter.default.removeObserver(disconnectObserver) }
     }
 
     override func viewDidLayoutSubviews() {
@@ -120,7 +129,10 @@ final class TVEmulationViewController: GCEventViewController {
     }
 
     func showPauseMenu() {
-        guard TVEmulator.shared.isRunning, !pauseMenuShown else { return }
+        // No alert can be shown while another one is up or the view is off screen;
+        // flagging the menu as shown anyway would leave the game paused with no menu.
+        guard TVEmulator.shared.isRunning, !pauseMenuShown,
+              presentedViewController == nil, view.window != nil else { return }
         pauseMenuShown = true
         TVEmulator.shared.setPaused(true)
         controllerUserInteractionEnabled = true   // let the remote / pad drive the alert

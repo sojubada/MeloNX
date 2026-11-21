@@ -86,10 +86,27 @@ final class TVControllers: ObservableObject {
             Ryujinx.detachGamepad(pad.pointer)
         }
         let type: ControllerType = pick(TVSettings.shared.values.player1Type, .proController)
+        let swapFaces = TVSettings.shared.values.swapFaceButtons
         for (index, pad) in gamepads.prefix(8).enumerated() {
             pad.controllerType = type
             pad.attach(index, controllerType: type)
+            pad.applyMapping(Self.mapping(for: pad, swapFaceButtons: swapFaces))
         }
+    }
+
+    /// The saved mapping for this pad, with A↔B and X↔Y exchanged when asked: on an
+    /// Xbox or PlayStation pad the Switch's A (confirm) then sits on the right-hand
+    /// button, where it is on a Switch controller.
+    static func mapping(for pad: NativeController, swapFaceButtons: Bool) -> ControllerMapping {
+        var mapping = ControllerMappingStore.shared.mapping(for: pad)
+        guard swapFaceButtons else { return mapping }
+        let a = mapping[button: .A], b = mapping[button: .B]
+        let x = mapping[button: .X], y = mapping[button: .Y]
+        mapping[button: .A] = b
+        mapping[button: .B] = a
+        mapping[button: .X] = y
+        mapping[button: .Y] = x
+        return mapping
     }
 
     func detachAll() {

@@ -68,10 +68,11 @@ struct TVSettingsView: View {
                 Section {
                     choice("컨트롤러 종류", ControllerType.allCases.filter { $0 != .handheld && $0 != .pokeball },
                            v.player1Type) { $0.displayName }
+                    Toggle("A/B·X/Y 위치 바꾸기 (Xbox·PS 패드)", isOn: v.swapFaceButtons)
                 } header: {
                     Text("입력")
                 } footer: {
-                    Text("연결된 게임패드 모두에 적용됩니다. 일시정지: Siri Remote의 Menu 또는 패드 − + L R 동시 입력.")
+                    Text("연결된 게임패드 모두에 적용됩니다. 위치 바꾸기를 켜면 Xbox·PS 패드에서도 Switch처럼 오른쪽 버튼이 A(확인)입니다. 일시정지: Siri Remote의 Menu 또는 패드 − + L R 동시 입력. 게임 중 패드 연결이 끊기면 자동으로 일시정지합니다.")
                 }
 
                 Section {

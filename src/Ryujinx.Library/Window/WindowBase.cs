@@ -276,27 +276,27 @@ namespace Ryujinx.Library
             FinalizeWindowRenderer();
         }
 
+        private int _exitRequested;
+
+        /// <summary>
+        /// Asks the main and render loops to stop. Safe to call more than once and from
+        /// any thread; it does not block. Resources are released by Dispose() and by the
+        /// caller of Execute() after both loops have ended (the device used to be disposed
+        /// here first, while the render thread could still be using it).
+        /// </summary>
         public void Exit()
         {
-            TouchScreenManager?.Dispose();
-            NpadManager?.Dispose();
-            Device.Dispose();
-
-            if (_isStopped)
+            if (Interlocked.Exchange(ref _exitRequested, 1) != 0)
             {
                 return;
             }
 
-            _gpuCancellationTokenSource.Cancel();
-
             _isStopped = true;
             _isActive = false;
+
+            _gpuCancellationTokenSource.Cancel();
+            _pauseEvent?.Set();          // a paused render loop would never see the stop
             _inputUpdatedEvent.Set();
-
-            _exitEvent.WaitOne();
-            _exitEvent.Dispose();
-
-            NativeGamepadDriver.OnInputUpdated -= SignalInputUpdated;
         }
 
         public static void ProcessMainThreadQueue()
@@ -372,6 +372,7 @@ namespace Ryujinx.Library
             _gpuDoneEvent.Dispose();
 
             Exit();
+            _exitEvent.Dispose();
         }
 
         public bool DisplayInputDialog(SoftwareKeyboardUIArgs args, out string userText)
@@ -532,7 +533,7 @@ namespace Ryujinx.Library
             {
                 _isActive = false;
                 _inputUpdatedEvent.Set();
-                NativeGamepadDriver.OnInputUpdated -= SignalInputUpdated;
+                NativeGamepadDriver.OnInputUpdated -= SignalInputUpdated;   // also covers the old Exit() unsubscribe
                 TouchScreenManager?.Dispose();
                 NpadManager.Dispose();
             }

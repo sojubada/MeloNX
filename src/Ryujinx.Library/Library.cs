@@ -182,11 +182,10 @@ namespace Ryujinx.Library
         [UnmanagedCallersOnly(EntryPoint = "stop_emulation")]
         public static void StopEmulation()
         {
-            if (_window != null)
-            {
-                _window.Exit();
-                _emulationContext.Dispose();
-            }
+            // Only ask the window loops to stop. ExecutionEntrypoint disposes the
+            // emulation context and the window once the render loop has ended;
+            // disposing here as well freed the device under the running render thread.
+            _window?.Exit();
         }
         
         public static nint GetNativeMetalLayer()
@@ -415,7 +414,7 @@ namespace Ryujinx.Library
             string name = Marshal.PtrToStringAnsi(userId);
 
             HLE.HOS.Services.Account.Acc.UserId userIdObj = new HLE.HOS.Services.Account.Acc.UserId(name);
-            _accountManager.OpenUser(userIdObj);
+            _accountManager.CloseUser(userIdObj);
         }
 
         [UnmanagedCallersOnly(EntryPoint = "free_avatars")]
@@ -1245,7 +1244,7 @@ namespace Ryujinx.Library
                 _virtualFileSystem = VirtualFileSystem.CreateInstance();
 
             var extension = Marshal.PtrToStringAnsi(extensionPtr);
-            var stream = OpenFile(descriptor);
+            using var stream = OpenFile(descriptor);   // fd stays open (ownsHandle: false); Swift closes it
 
             return GameInfoLoader.GetGameInfoNative(_virtualFileSystem, stream, extension);
         }
