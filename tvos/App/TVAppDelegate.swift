@@ -91,6 +91,9 @@ final class TVAppDelegate: UIResponder, UIApplicationDelegate {
             // One failed Metal command buffer must not end the game: keep using the
             // device (the core then drops that frame, see VulkanException.cs).
             ("MVK_CONFIG_RESUME_LOST_DEVICE", "1"),
+            // Keep the MSL source MoltenVK holds for every shader LZFSE-compressed
+            // (several times smaller); it otherwise piles up in malloc on a 4 GB box.
+            ("MVK_CONFIG_SHADER_COMPRESSION_ALGORITHM", "1"),
             ("HAS_TXM", "0"),
             ("DUAL_MAPPED_JIT", "0"),
         ]

@@ -265,6 +265,21 @@ namespace Ryujinx.Graphics.Vulkan
 
             Interlocked.Increment(ref _mainState.PipelineCount);
 
+            // tvOS (4 GB, no RAM donor): an over-budget main cache is never persisted,
+            // yet MoltenVK keeps every converted shader in it, so it only grows in
+            // memory for the whole session. Start a fresh one instead. Only the render
+            // thread uses the main cache, and pipelines already made stay in their
+            // ShaderCollection, so nothing is recompiled.
+            if (OperatingSystem.IsTvOS() && _mainState.EstimatedBytes >= _mainState.Budget)
+            {
+                lock (_mainCacheLock)
+                {
+                    Maintain(_mainState, force: true, allowRecycle: true);
+                }
+
+                return;
+            }
+
             if (_mainState.EstimatedBytes >= _mainState.Budget &&
                 Interlocked.Exchange(ref _warnedMainCacheOverBudget, 1) == 0)
             {

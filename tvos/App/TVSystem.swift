@@ -132,6 +132,21 @@ enum TVMemory {
         return kr == KERN_SUCCESS ? Int(info.phys_footprint / 1_048_576) : -1
     }
 
+    /// Parts of the footprint the region walk cannot see: compressed pages and
+    /// GPU memory charged through the graphics ledger (not mapped into the CPU).
+    static var ledgerSummary: String {
+        var info = task_vm_info_data_t()
+        var count = mach_msg_type_number_t(MemoryLayout<task_vm_info_data_t>.size / MemoryLayout<integer_t>.size)
+        let kr = withUnsafeMutablePointer(to: &info) {
+            $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
+                task_info(mach_task_self_, task_flavor_t(TASK_VM_INFO), $0, &count)
+            }
+        }
+        guard kr == KERN_SUCCESS else { return "ledger n/a" }
+        let mb: (UInt64) -> UInt64 = { $0 / 1_048_576 }
+        return "internal \(mb(info.internal)), compressed \(mb(info.compressed)), graphics \(mb(UInt64(max(0, info.ledger_tag_graphics_footprint)))), purgeable \(mb(UInt64(max(0, info.ledger_purgeable_nonvolatile))))"
+    }
+
     /// Metal allocations of this process (textures, buffers, pipelines via MoltenVK).
     static var metalMB: Int {
         Int((metalDevice?.currentAllocatedSize ?? 0) / 1_048_576)
@@ -151,7 +166,7 @@ enum TVMemory {
         var depth: natural_t = 0
         let page = UInt64(vm_page_size)
         var byGroup: [String: UInt64] = [:]
-        var seenShared = Set<UInt32>()
+        var seenShared = Set<String>()   // object + offset: the same guest page mapped twice counts once
         var largest: (bytes: UInt64, tag: UInt32, shared: Bool) = (0, 0, false)
         var regions = 0
 
@@ -172,7 +187,7 @@ enum TVMemory {
             if bytes == 0 { continue }
             let mode = Int32(info.share_mode)
             let shared = mode == SM_SHARED || mode == SM_TRUESHARED || mode == SM_SHARED_ALIASED
-            if shared && !seenShared.insert(info.object_id).inserted { continue }
+            if shared && !seenShared.insert("\(info.object_id):\(info.offset)").inserted { continue }
 
             let tag = info.user_tag
             let group: String

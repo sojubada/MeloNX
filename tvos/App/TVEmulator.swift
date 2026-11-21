@@ -86,7 +86,7 @@ final class TVEmulator: ObservableObject {
             let available = TVMemory.availableMB
             if ticks % 30 == 0 {
                 // footprint = everything charged to the app; Metal = GPU share of it
-                TVLog.write("mem: available \(available) MB, footprint \(TVMemory.footprintMB) MB, Metal \(TVMemory.metalMB) MB")
+                TVLog.write("mem: available \(available) MB, footprint \(TVMemory.footprintMB) MB, Metal \(TVMemory.metalMB) MB; \(TVMemory.ledgerSummary)")
             }
             // What the footprint is made of: at 5 s (after loading), every 30 s, and when it gets low
             if ticks == 5 || ticks % 30 == 15 || (available < Self.lowMemoryMB && !self.lowMemory) {
