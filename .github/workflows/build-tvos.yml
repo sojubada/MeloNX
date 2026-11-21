@@ -1,6 +1,6 @@
 name: Build tvOS (.tipa)
 
-# MeloNX 2.7 for Apple TV (tvOS 16, TrollStore).
+# MeloNX for tvOS (tvOS 16, TrollStore).
 #
 #   deps  ─┐   MoltenVK 1.4.0 / SDL3 (e4f75ba) / FFmpeg for appletvos   (cached)
 #   core  ─┼─▶ app   Ryujinx.Library NativeAOT tvos-arm64                 (cached)
@@ -275,7 +275,7 @@ jobs:
             [ -n "$(gh release view "$TAG" --json body -q .body)" ] || gh release edit "$TAG" --notes-file tvos/RELEASE_NOTES.md
             gh release upload "$TAG" dist/MeloNX.tipa dist/MeloNX.ipa --clobber
           else
-            gh release create "$TAG" --target "$GITHUB_SHA" --title "MeloNX for Apple TV $TAG" \
+            gh release create "$TAG" --target "$GITHUB_SHA" --title "MeloNX for tvOS $TAG" \
               --notes-file tvos/RELEASE_NOTES.md dist/MeloNX.tipa dist/MeloNX.ipa
           fi
           echo "Release: $(gh release view "$TAG" --json url -q .url)" >> "$GITHUB_STEP_SUMMARY"

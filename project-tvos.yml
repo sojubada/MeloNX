@@ -1,4 +1,4 @@
-# XcodeGen spec — MeloNX for Apple TV (tvOS 16, TrollStore)
+# XcodeGen spec — MeloNX for tvOS (tvOS 16, TrollStore)
 #
 #   xcodegen generate --spec project-tvos.yml   →  MeloNX-tvOS.xcodeproj
 #

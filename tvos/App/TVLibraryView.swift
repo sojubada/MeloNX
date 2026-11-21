@@ -69,7 +69,7 @@ struct TVLibraryView: View {
     private var header: some View {
         HStack(alignment: .firstTextBaseline) {
             Text("MeloNX").font(.system(size: 76, weight: .bold))
-            Text("for Apple TV").font(.title2).foregroundColor(.secondary)
+            Text("for tvOS").font(.title2).foregroundColor(.secondary)
             Spacer()
             Text(appVersion).font(.headline).foregroundColor(.secondary)
         }
