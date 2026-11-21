@@ -765,6 +765,14 @@ namespace Ryujinx.Graphics.Vulkan
                 Format.EacR11G11Unorm,
                 Format.EacR11G11Snorm);
 
+            if (IsMoltenVk)
+            {
+                // Without BC support, 2D BC textures are transcoded block by block to ETC2/EAC
+                // (same size, still compressed) when ETC2 is available; otherwise they are
+                // decoded to RGBA8, 4-8x larger. Logged so device logs show which path runs.
+                Logger.Info?.Print(LogClass.Gpu, $"Texture formats: ETC2/EAC {(supportsEtc2CompressionFormat ? "supported (BC transcoded to ETC2)" : "not supported (BC decoded to RGBA8)")}");
+            }
+
             bool supports5BitComponentFormat = FormatCapabilities.OptimalFormatsSupport(compressedFormatFeatureFlags,
                 Format.R5G6B5Unorm,
                 Format.R5G5B5A1Unorm,
