@@ -100,12 +100,12 @@ final class TVControllers: ObservableObject {
     static func mapping(for pad: NativeController, swapFaceButtons: Bool) -> ControllerMapping {
         var mapping = ControllerMappingStore.shared.mapping(for: pad)
         guard swapFaceButtons else { return mapping }
-        let a = mapping[button: .A], b = mapping[button: .B]
-        let x = mapping[button: .X], y = mapping[button: .Y]
-        mapping[button: .A] = b
-        mapping[button: .B] = a
-        mapping[button: .X] = y
-        mapping[button: .Y] = x
+        let a = mapping[.A], b = mapping[.B]
+        let x = mapping[.X], y = mapping[.Y]
+        mapping[.A] = b
+        mapping[.B] = a
+        mapping[.X] = y
+        mapping[.Y] = x
         return mapping
     }
 
