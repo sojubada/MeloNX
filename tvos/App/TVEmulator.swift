@@ -72,14 +72,14 @@ final class TVEmulator: ObservableObject {
     private func startMemoryWatch() {
         memoryWatch?.cancel()
         let timer = DispatchSource.makeTimerSource(queue: .main)
-        timer.schedule(deadline: .now() + 5, repeating: 5)
+        timer.schedule(deadline: .now() + 1, repeating: 1)   // RunningBoard can lower the limit at any time; keep the window short
         var ticks = 0
         timer.setEventHandler {
             TVMemory.raiseJetsamLimit("watch")
             ticks += 1
             // Every 30 s: a game killed by jetsam leaves no crash line, so the
             // last of these shows how close it was.
-            if ticks % 6 == 0 { TVLog.write("mem: available \(TVMemory.availableMB) MB") }
+            if ticks % 30 == 0 { TVLog.write("mem: available \(TVMemory.availableMB) MB") }
         }
         timer.resume()
         memoryWatch = timer
