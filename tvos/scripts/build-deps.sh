@@ -113,6 +113,29 @@ if guard not in s:
 print("patched", p)
 PY
 
+  # Patch: tvOS feature table. MoltenVK's MVK_TVOS block in initMetalFeatures()
+  # predates A12+ Apple TVs: it never enables the Apple4+/Apple5+ features the
+  # iOS block enables on the same GPU families (layered rendering, stencil
+  # feedback, post-depth coverage, non-uniform threadgroups, SIMD permute, ...),
+  # nor subgroup sizes. The Apple TV 4K (3rd gen) has the same A15
+  # GPU as an iPhone 13, so run the iOS block on tvOS too (it only uses GPU-family
+  # and OS-version checks). Device log: "This device does not support rendering to
+  # array (layered) attachments".
+  log "MoltenVK 패치: tvOS에 iOS 기능 표 적용"
+  python3 - <<'PY'
+p = "MoltenVK/MoltenVK/GPUObjects/MVKDevice.mm"
+s = open(p).read()
+if "MVK_TVOS_USES_IOS_FEATURES" not in s:
+    a = "#endif\n\n#if MVK_IOS\n\t_metalFeatures.mslVersionEnum = MTLLanguageVersion2_0;\n"
+    assert s.count(a) == 1, "iOS feature block anchor"
+    s = s.replace(a, "#endif\n\n#if MVK_IOS || MVK_TVOS // MVK_TVOS_USES_IOS_FEATURES\n\t_metalFeatures.mslVersionEnum = MTLLanguageVersion2_0;\n")
+    b = "#if MVK_IOS\n    if (_metalFeatures.simdPermute) {"
+    assert s.count(b) == 1, "subgroup anchor"
+    s = s.replace(b, "#if MVK_IOS || MVK_TVOS\n    if (_metalFeatures.simdPermute) {")
+    open(p, "w").write(s)
+print("patched", p)
+PY
+
   # MoltenVK는 glslang / SPIRV-Cross / SPIRV-Tools 를 External 로 가져와
   # 플랫폼별로 같이 빌드한다. --tvos 를 꼭 붙여야 tvOS 슬라이스가 생긴다.
   log "fetchDependencies --tvos (수십 분 걸린다)"
