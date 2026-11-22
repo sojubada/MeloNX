@@ -127,6 +127,35 @@ final class TVEmulationViewController: GCEventViewController {
         }
     }
 
+    // MARK: Menu button / leaving the screen
+
+    // While the pause menu is up controllerUserInteractionEnabled is true, so a
+    // quick second Menu press reached UIKit, whose default is to dismiss this
+    // screen: the library came back with the game still running underneath and
+    // every other game was refused as "already running". While a game runs, Menu
+    // only ever opens the pause menu.
+    override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        if TVEmulator.shared.isRunning, presses.contains(where: { $0.type == .menu }) {
+            showPauseMenu()
+            return
+        }
+        super.pressesBegan(presses, with: event)
+    }
+
+    override func pressesEnded(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        if TVEmulator.shared.isRunning, presses.contains(where: { $0.type == .menu }) { return }
+        super.pressesEnded(presses, with: event)
+    }
+
+    // Safety net: if this screen goes away any other way, end the game with it.
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        if isBeingDismissed, TVEmulator.shared.isRunning {
+            TVLog.write("emulation screen dismissed while running; stopping the game")
+            TVEmulator.shared.stop()
+        }
+    }
+
     // MARK: Pause menu
 
     private func installPauseTriggers() {

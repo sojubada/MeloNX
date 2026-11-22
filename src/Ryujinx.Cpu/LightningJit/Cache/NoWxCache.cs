@@ -314,8 +314,11 @@ namespace Ryujinx.Cpu.LightningJit.Cache
 
                 int sizeAligned = BitUtils.AlignUp(entry.Size, pageSize);
 
-                _localCache.Free(entry.Offset, sizeAligned);
+                // Make the pages writable before handing them back, so the next
+                // owner never copies code into a page that is still RX (SIGBUS,
+                // seen as DataMisalignedException in Memmove).
                 _localCache.ReprotectAsRw(entry.Offset, sizeAligned);
+                _localCache.Free(entry.Offset, sizeAligned);
             }
 
             toDelete.Clear();
@@ -335,12 +338,19 @@ namespace Ryujinx.Cpu.LightningJit.Cache
 
             int pageSize = (int)MemoryBlock.GetPageSize();
 
-            foreach ((_, ThreadLocalCacheEntry entry) in threadLocalCache)
+            // Runs on an exiting guest thread, outside the translation lock: take it,
+            // or another thread may get these pages from the allocator and write into
+            // them while they are still RX (crash at game start, DataMisalignedException
+            // in NoWxCache.AddThreadLocalFunction).
+            lock (_lock)
             {
-                int sizeAligned = BitUtils.AlignUp(entry.Size, pageSize);
+                foreach ((_, ThreadLocalCacheEntry entry) in threadLocalCache)
+                {
+                    int sizeAligned = BitUtils.AlignUp(entry.Size, pageSize);
 
-                _localCache.Free(entry.Offset, sizeAligned);
-                _localCache.ReprotectAsRw(entry.Offset, sizeAligned);
+                    _localCache.ReprotectAsRw(entry.Offset, sizeAligned);
+                    _localCache.Free(entry.Offset, sizeAligned);
+                }
             }
 
             threadLocalCache.Clear();

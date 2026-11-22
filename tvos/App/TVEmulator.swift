@@ -217,6 +217,7 @@ final class TVEmulator: ObservableObject {
 
     func stop() {
         guard isRunning else { return }
+        TVLog.write("stop requested")
         Ryujinx.stopEmulation()
     }
 
