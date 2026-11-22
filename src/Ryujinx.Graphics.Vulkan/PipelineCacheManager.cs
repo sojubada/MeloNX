@@ -148,7 +148,14 @@ namespace Ryujinx.Graphics.Vulkan
         private bool _disposed;
         private int _warnedMainCacheOverBudget;
 
-        public PipelineCache MainCache => _mainState.Cache;
+        // tvOS (4 GB, no RAM donor): no VkPipelineCache at all. Once over budget it
+        // was never saved, yet MoltenVK kept every converted shader in it for the
+        // whole session. Without one, MoltenVK keeps each conversion with its shader
+        // module, which is freed with the shader. (Recycling the cache instead raced
+        // with the shader-cache loader threads and crashed at start.)
+        private static readonly bool NoCaches = OperatingSystem.IsTvOS();
+
+        public PipelineCache MainCache => NoCaches ? default : _mainState.Cache;
         public bool SupportsNonBlockingPipelineCreation { get; }
 
         public PipelineCacheManager(
@@ -232,18 +239,19 @@ namespace Ryujinx.Graphics.Vulkan
 
         public PipelineCache GetWorkerCache(int workerIndex)
         {
-            return _workerStates[workerIndex].Cache;
+            return NoCaches ? default : _workerStates[workerIndex].Cache;
         }
 
         public bool IsMainCache(PipelineCache cache)
         {
-            return cache.Handle == MainCache.Handle;
+            // A null cache needs no lock and has nothing to maintain
+            return !NoCaches && cache.Handle == MainCache.Handle;
         }
 
 
         public void NotifyWorkerPipelineCreated(int workerIndex)
         {
-            if (_disposed)
+            if (_disposed || NoCaches)
             {
                 return;
             }
@@ -265,21 +273,6 @@ namespace Ryujinx.Graphics.Vulkan
 
             Interlocked.Increment(ref _mainState.PipelineCount);
 
-            // tvOS (4 GB, no RAM donor): an over-budget main cache is never persisted,
-            // yet MoltenVK keeps every converted shader in it, so it only grows in
-            // memory for the whole session. Start a fresh one instead. Only the render
-            // thread uses the main cache, and pipelines already made stay in their
-            // ShaderCollection, so nothing is recompiled.
-            if (OperatingSystem.IsTvOS() && _mainState.EstimatedBytes >= _mainState.Budget)
-            {
-                lock (_mainCacheLock)
-                {
-                    Maintain(_mainState, force: true, allowRecycle: true);
-                }
-
-                return;
-            }
-
             if (_mainState.EstimatedBytes >= _mainState.Budget &&
                 Interlocked.Exchange(ref _warnedMainCacheOverBudget, 1) == 0)
             {
@@ -293,6 +286,11 @@ namespace Ryujinx.Graphics.Vulkan
         public void MergeAndSave()
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
+
+            if (NoCaches)
+            {
+                return;
+            }
 
             lock (_mainCacheLock)
             {
