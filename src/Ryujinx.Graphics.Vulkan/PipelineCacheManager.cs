@@ -148,14 +148,7 @@ namespace Ryujinx.Graphics.Vulkan
         private bool _disposed;
         private int _warnedMainCacheOverBudget;
 
-        // tvOS (4 GB, no RAM donor): no VkPipelineCache at all. Once over budget it
-        // was never saved, yet MoltenVK kept every converted shader in it for the
-        // whole session. Without one, MoltenVK keeps each conversion with its shader
-        // module, which is freed with the shader. (Recycling the cache instead raced
-        // with the shader-cache loader threads and crashed at start.)
-        private static readonly bool NoCaches = OperatingSystem.IsTvOS();
-
-        public PipelineCache MainCache => NoCaches ? default : _mainState.Cache;
+        public PipelineCache MainCache => _mainState.Cache;
         public bool SupportsNonBlockingPipelineCreation { get; }
 
         public PipelineCacheManager(
@@ -239,19 +232,18 @@ namespace Ryujinx.Graphics.Vulkan
 
         public PipelineCache GetWorkerCache(int workerIndex)
         {
-            return NoCaches ? default : _workerStates[workerIndex].Cache;
+            return _workerStates[workerIndex].Cache;
         }
 
         public bool IsMainCache(PipelineCache cache)
         {
-            // A null cache needs no lock and has nothing to maintain
-            return !NoCaches && cache.Handle == MainCache.Handle;
+            return cache.Handle == MainCache.Handle;
         }
 
 
         public void NotifyWorkerPipelineCreated(int workerIndex)
         {
-            if (_disposed || NoCaches)
+            if (_disposed)
             {
                 return;
             }
@@ -286,11 +278,6 @@ namespace Ryujinx.Graphics.Vulkan
         public void MergeAndSave()
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
-
-            if (NoCaches)
-            {
-                return;
-            }
 
             lock (_mainCacheLock)
             {
