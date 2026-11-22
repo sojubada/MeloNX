@@ -113,6 +113,23 @@ if guard not in s:
 print("patched", p)
 PY
 
+  # Patch: always ask Metal for per-encoder execution status, so a GPU fault
+  # (Mario Wonder: "GPU Address Fault" after a course clear, then device lost)
+  # logs which encoder (render / compute / blit, and its Vulkan command) failed.
+  # MoltenVK only does this in full debug mode, which is too slow to play in.
+  log "MoltenVK 패치: GPU 오류 시 인코더 상태 기록"
+  python3 - <<'PY'
+p = "MoltenVK/MoltenVK/GPUObjects/MVKQueue.mm"
+s = open(p).read()
+a = "\t\tif (getMVKConfig().debugMode) {\n\t\t\tmtlCmdBuffDesc.errorOptions |= MTLCommandBufferErrorOptionEncoderExecutionStatus;\n\t\t}\n"
+if a in s:
+    s = s.replace(a, "\t\tmtlCmdBuffDesc.errorOptions |= MTLCommandBufferErrorOptionEncoderExecutionStatus;\n")
+    open(p, "w").write(s)
+    print("patched", p)
+else:
+    assert "MTLCommandBufferErrorOptionEncoderExecutionStatus;\n\t\tmtlCmdBuff" in s or "errorOptions |= MTLCommandBufferErrorOptionEncoderExecutionStatus" in s, "MVKQueue anchor"
+PY
+
   # Patch: tvOS feature table. MoltenVK's MVK_TVOS block in initMetalFeatures()
   # predates A12+ Apple TVs: it never enables the Apple4+/Apple5+ features the
   # iOS block enables on the same GPU families (layered rendering, stencil
