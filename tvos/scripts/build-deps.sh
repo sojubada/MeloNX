@@ -31,7 +31,8 @@ ARCH=arm64
 # MoltenVK 버전. 러너의 Xcode 16.4 와 빌드되는 것이 우선이라 v1.3.0 을 쓴다.
 # (구버전은 최신 Xcode 에서 자체 컴파일 에러가 날 수 있다)
 # 교체: MOLTENVK_TAG=v1.4.2 ./build-deps.sh moltenvk
-MOLTENVK_TAG="${MOLTENVK_TAG:-v1.4.0}"   # MeloNX 2.7 bundles MoltenVK 1.4.0
+MOLTENVK_TAG="${MOLTENVK_TAG:-v1.4.2}"   # MeloNX 2.7 bundles 1.4.0; 1.4.1/1.4.2 fix occlusion-query GPU faults
+                                          # (Mario Wonder froze after course clear), host-memory import, device-memory races
 # SDL 은 릴리즈 태그에 3.5.0 이 없다(최신 안정판 3.4.x). 아래 주석 참고.
 # MeloNX 2.7 bundles "SDL-3.5.0-e4f75ba" (main, 2026-04-12, "Remove SDL_gtk").
 SDL_REF="${SDL_REF:-e4f75bac451230d31695158ed35f459e7a04585c}"
@@ -113,23 +114,6 @@ if guard not in s:
 print("patched", p)
 PY
 
-  # Patch: always ask Metal for per-encoder execution status, so a GPU fault
-  # (Mario Wonder: "GPU Address Fault" after a course clear, then device lost)
-  # logs which encoder (render / compute / blit, and its Vulkan command) failed.
-  # MoltenVK only does this in full debug mode, which is too slow to play in.
-  log "MoltenVK 패치: GPU 오류 시 인코더 상태 기록"
-  python3 - <<'PY'
-p = "MoltenVK/MoltenVK/GPUObjects/MVKQueue.mm"
-s = open(p).read()
-a = "\t\tif (getMVKConfig().debugMode) {\n\t\t\tmtlCmdBuffDesc.errorOptions |= MTLCommandBufferErrorOptionEncoderExecutionStatus;\n\t\t}\n"
-if a in s:
-    s = s.replace(a, "\t\tmtlCmdBuffDesc.errorOptions |= MTLCommandBufferErrorOptionEncoderExecutionStatus;\n")
-    open(p, "w").write(s)
-    print("patched", p)
-else:
-    assert "MTLCommandBufferErrorOptionEncoderExecutionStatus;\n\t\tmtlCmdBuff" in s or "errorOptions |= MTLCommandBufferErrorOptionEncoderExecutionStatus" in s, "MVKQueue anchor"
-PY
-
   # Patch: tvOS feature table. MoltenVK's MVK_TVOS block in initMetalFeatures()
   # predates A12+ Apple TVs: it never enables the Apple4+/Apple5+ features the
   # iOS block enables on the same GPU families (layered rendering, stencil
@@ -142,8 +126,12 @@ PY
   python3 - <<'PY'
 p = "MoltenVK/MoltenVK/GPUObjects/MVKDevice.mm"
 s = open(p).read()
+a = "#endif\n\n#if MVK_IOS\n\t_metalFeatures.mslVersionEnum = MTLLanguageVersion2_0;\n"
+if "MVK_TVOS_USES_IOS_FEATURES" not in s and a not in s:
+    # 1.4.1+ builds one feature table for every OS from GPU-family checks
+    print("feature table already unified, no patch needed")
+    raise SystemExit(0)
 if "MVK_TVOS_USES_IOS_FEATURES" not in s:
-    a = "#endif\n\n#if MVK_IOS\n\t_metalFeatures.mslVersionEnum = MTLLanguageVersion2_0;\n"
     assert s.count(a) == 1, "iOS feature block anchor"
     s = s.replace(a, "#endif\n\n#if MVK_IOS || MVK_TVOS // MVK_TVOS_USES_IOS_FEATURES\n\t_metalFeatures.mslVersionEnum = MTLLanguageVersion2_0;\n")
     b = "#if MVK_IOS\n    if (_metalFeatures.simdPermute) {"
