@@ -91,6 +91,7 @@ struct TVSettingsView: View {
                     Toggle("RAM 확장 (8GB 게임용)", isOn: v.expandRAM)
                     Toggle("없는 서비스 무시", isOn: v.ignoreMissingServices)
                     Toggle("디버그 로그", isOn: v.debugLogs)
+                    Toggle("Metal 성능 표시 (앱 재시작 후 적용)", isOn: v.metalHUD)
                     Button("기본값으로 되돌리기", role: .destructive) { confirmReset = true }
                 } header: {
                     Text("고급")

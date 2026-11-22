@@ -86,6 +86,12 @@ final class TVAppDelegate: UIResponder, UIApplicationDelegate {
     /// HAS_TXM / DUAL_MAPPED_JIT stay 0: those are the iOS 26 debugger paths
     /// (BreakpointJIT). With dynamic-codesigning the core uses plain RW↔RX JIT.
     private static func setEmulatorEnvironment() {
+        // Apple's Metal Performance HUD (FPS, frame/GPU time, memory) over the game,
+        // like MeloNX on iPhone. Read by Metal when it starts, so the setting takes
+        // effect at the next app launch.
+        if TVSettings.shared.values.metalHUD {
+            setenv("MTL_HUD_ENABLED", "1", 1)
+        }
         var values: [(String, String)] = [
             ("MVK_CONFIG_MAX_ACTIVE_METAL_COMMAND_BUFFERS_PER_QUEUE", "32"),
             // One failed Metal command buffer must not end the game: keep using the
