@@ -169,7 +169,10 @@ namespace Ryujinx.Input.HLE
                     oldControllers[i] = null;
                 }
 
-                _inputConfig = inputConfig;
+                // Own copy: callers (Library.AttachGamepad/DetachGamepad) keep editing
+                // their list outside this lock, which threw "Collection was modified"
+                // in Update() when a pad reconnected mid-game.
+                _inputConfig = new List<InputConfig>(inputConfig);
                 _enableKeyboard = enableKeyboard;
                 _enableMouse = enableMouse;
 

@@ -11,7 +11,7 @@
 //          roms/      ← games .nsp / .xci / .nro (sub-folders are fine)
 //          system/    ← prod.keys, title.keys
 //          firmware/  ← firmware .zip (installed from the home screen)
-//          Logs/      ← tvos-app.log, stdout.log (+ stdout.prev.log = previous run)
+//          Logs/      ← tvos-app.log, stdout.log (+ stdout.prev…prev4.log = earlier runs)
 //          bis/, games/, profiles/ … ← created by the emulator
 //
 //  Documents is still tried first, in case a future tvOS / install allows it.
@@ -240,11 +240,17 @@ enum TVLog {
         tvLogFD = Darwin.open(dir.appendingPathComponent("tvos-app.log").path, O_WRONLY | O_CREAT | O_APPEND, 0o644)
 
         // Core output and .NET fatal errors go to stdout/stderr
-        // Keep the previous run: after a crash the app is relaunched to read the log
+        // Keep the last four runs (stdout.prev.log = previous, then prev2...prev4):
+        // after a freeze the app is often relaunched more than once before the
+        // logs are collected, and one previous run was not enough.
         let stdoutPath = dir.appendingPathComponent("stdout.log").path
-        let prevPath = dir.appendingPathComponent("stdout.prev.log").path
-        Darwin.unlink(prevPath)
-        Darwin.rename(stdoutPath, prevPath)
+        let previous = ["stdout.prev.log", "stdout.prev2.log", "stdout.prev3.log", "stdout.prev4.log"]
+            .map { dir.appendingPathComponent($0).path }
+        Darwin.unlink(previous[previous.count - 1])
+        for i in stride(from: previous.count - 1, to: 0, by: -1) {
+            Darwin.rename(previous[i - 1], previous[i])
+        }
+        Darwin.rename(stdoutPath, previous[0])
         let out = Darwin.open(stdoutPath, O_WRONLY | O_CREAT | O_TRUNC, 0o644)
         if out >= 0 {
             dup2(out, STDOUT_FILENO)
