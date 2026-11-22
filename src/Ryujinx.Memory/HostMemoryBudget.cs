@@ -23,6 +23,7 @@ namespace Ryujinx.Memory
         private const int PhysFootprintIndex = 144 / 8;
 
         private static long _cachedTotalBytes = -1;
+        private const ulong TvOSCacheBudgetCap = 3470UL * 1024 * 1024;
         public static bool IsConstrained => (OperatingSystem.IsIOS() || OperatingSystem.IsTvOS());
         
         public static ulong AvailableBytes
@@ -97,6 +98,13 @@ namespace Ryujinx.Memory
                     if (available != 0)
                     {
                         total = Math.Max(FootprintBytes + available, MinimumPlausibleBudget);
+
+                        // tvOS raises its limit past physical RAM (compressed pages count
+                        // at full size); size the GPU caches from real memory, not that.
+                        if (OperatingSystem.IsTvOS())
+                        {
+                            total = Math.Min(total, TvOSCacheBudgetCap);
+                        }
                     }
                 }
 

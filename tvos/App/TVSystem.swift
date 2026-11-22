@@ -216,6 +216,8 @@ enum TVMemory {
 
     /// The limit we asked for at launch and whether the kernel accepted it.
     private(set) static var requestedLimitMB = 0
+    /// Limit the kernel accepted last time, so the 1 s watch does not retry refused ones.
+    private static var acceptedLimitMB = 0
     private(set) static var raisedLimit = false
 
     private static let MEMORYSTATUS_CMD_SET_MEMLIMIT_PROPERTIES: UInt32 = 7
@@ -240,18 +242,31 @@ enum TVMemory {
     /// activation, at game start and periodically while a game runs.
     @discardableResult
     static func raiseJetsamLimit(_ reason: String = "launch") -> Bool {
-        let leaveForSystem = 384     // 3,598 MB on a 4 GB Apple TV
-        let target = max(physicalMB - leaveForSystem, 1024)
-        requestedLimitMB = target
+        // The footprint counts compressed pages at their full size. Mario Wonder sat
+        // at ~2 GB compressed (~0.5 GB of real RAM) and froze at the old 3,598 MB
+        // limit with physical memory still free, so allow more than the physical
+        // size: the kernel's own page-shortage jetsam still guards real RAM.
+        let candidates = acceptedLimitMB > 0
+            ? [acceptedLimitMB]
+            : [physicalMB + 1536, physicalMB + 1024, physicalMB + 512, physicalMB, max(physicalMB - 384, 1024)]
         let before = availableMB
+        var r1: Int32 = -1, e1: Int32 = 0
+        var target = candidates.last!
 
-        var props = MemlimitProperties(activeMB: Int32(target), activeAttr: 1,   // 1 = FATAL (hard limit, as RunningBoard sets)
-                                       inactiveMB: Int32(target), inactiveAttr: 1)
-        let r1 = withUnsafeMutablePointer(to: &props) {
-            memorystatus_control(MEMORYSTATUS_CMD_SET_MEMLIMIT_PROPERTIES, getpid(), 0,
-                                 UnsafeMutableRawPointer($0), MemoryLayout<MemlimitProperties>.size)
+        for candidate in candidates {
+            var props = MemlimitProperties(activeMB: Int32(candidate), activeAttr: 1,   // 1 = FATAL (hard limit, as RunningBoard sets)
+                                           inactiveMB: Int32(candidate), inactiveAttr: 1)
+            r1 = withUnsafeMutablePointer(to: &props) {
+                memorystatus_control(MEMORYSTATUS_CMD_SET_MEMLIMIT_PROPERTIES, getpid(), 0,
+                                     UnsafeMutableRawPointer($0), MemoryLayout<MemlimitProperties>.size)
+            }
+            e1 = errno
+            target = candidate
+            if r1 == 0 { break }
         }
-        let e1 = errno
+        if r1 == 0 { acceptedLimitMB = target }
+        requestedLimitMB = target
+
         let r2 = memorystatus_control(MEMORYSTATUS_CMD_SET_JETSAM_TASK_LIMIT, getpid(), UInt32(target), nil, 0)
         let e2 = errno
         raisedLimit = (r1 == 0 || r2 == 0)
