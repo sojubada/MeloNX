@@ -129,6 +129,11 @@ namespace Ryujinx.Memory
                 return donated;
             }
 
+            if (GuestMemorySwap.TryAllocate(size, out nint fileBacked))
+            {
+                return fileBacked;
+            }
+
             nint address = 0;
 
             int err = vm_allocate(mach_task_self(), &address, (nint)size, VM_FLAGS_ANYWHERE);
@@ -147,6 +152,10 @@ namespace Ryujinx.Memory
             {
                 return;
             }
+
+            // Swap-file blocks are released the same way (vm_deallocate unmaps the file;
+            // being unlinked, its disk space is freed with the last mapping).
+            GuestMemorySwap.Release(handle);
 
             vm_deallocate(mach_task_self(), handle, (nint)size);
         }

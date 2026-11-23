@@ -48,6 +48,7 @@ struct TVSettingsValues: Codable, Equatable {
     // Logs
     var debugLogs = false
     var metalHUD = false                   // Metal Performance HUD, applies at next app launch
+    var guestSwap = true                   // back guest RAM with swap files (flash), applies at next app launch
 }
 
 /// Case of a MeloNX option enum by its `id` (Int), as stored in the settings.

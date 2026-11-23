@@ -88,6 +88,7 @@ struct TVSettingsView: View {
 
                 Section {
                     choice("메모리 관리 방식", MemoryManagerMode.allCases, v.memoryManager) { $0.displayName }
+                    Toggle("RAM 스왑 (저장 공간을 메모리로 사용, 앱 재시작 후 적용)", isOn: v.guestSwap)
                     Toggle("RAM 확장 (8GB 게임용)", isOn: v.expandRAM)
                     Toggle("없는 서비스 무시", isOn: v.ignoreMissingServices)
                     Toggle("디버그 로그", isOn: v.debugLogs)

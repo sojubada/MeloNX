@@ -92,6 +92,15 @@ final class TVAppDelegate: UIResponder, UIApplicationDelegate {
         if TVSettings.shared.values.metalHUD {
             setenv("MTL_HUD_ENABLED", "1", 1)
         }
+        // RAM swap: the core backs guest memory with swap files here (GuestMemorySwap.cs).
+        // Read by the core when it starts, so the setting applies at the next launch.
+        if TVSettings.shared.values.guestSwap {
+            let swapDir = TVPaths.root.appendingPathComponent("swap", isDirectory: true)
+            setenv("MELONX_GUEST_SWAP_DIR", swapDir.path, 1)
+            let free = (try? swapDir.deletingLastPathComponent()
+                .resourceValues(forKeys: [.volumeAvailableCapacityKey]).volumeAvailableCapacity) ?? nil
+            TVLog.write("RAM swap on: \(swapDir.path); disk free \(free.map { "\($0 / 1_048_576) MB" } ?? "?")")
+        }
         var values: [(String, String)] = [
             ("MVK_CONFIG_MAX_ACTIVE_METAL_COMMAND_BUFFERS_PER_QUEUE", "32"),
             // One failed Metal command buffer must not end the game: keep using the
