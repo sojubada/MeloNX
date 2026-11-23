@@ -30,6 +30,23 @@ final class TVEmulationViewController: GCEventViewController {
     private var connectObserver: NSObjectProtocol?
     private var disconnectObserver: NSObjectProtocol?
     private var lowMemoryCancellable: AnyCancellable?
+    private var stopStuckCancellable: AnyCancellable?
+
+    /// The core did not finish shutting down; nothing more can run in this
+    /// process safely, so offer to close the app (relaunch from the Home screen).
+    private func showStopStuck() {
+        if presentedViewController != nil { dismiss(animated: false) }
+        controllerUserInteractionEnabled = true
+        let alert = UIAlertController(title: "게임 종료가 끝나지 않습니다",
+                                      message: "에뮬레이터가 정리 중에 멈췄습니다. 앱을 닫은 뒤 홈 화면에서 다시 실행해 주세요.",
+                                      preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "앱 닫기", style: .destructive) { _ in
+            TVLog.write("closing the app after a stuck stop")
+            exit(0)
+        })
+        present(alert, animated: true)
+    }
+
     private let lowMemoryLabel: UILabel = {
         let label = UILabel()
         label.text = "  메모리가 거의 다 찼습니다. 지금 게임에서 저장하세요 — 곧 종료될 수 있습니다.  "
@@ -71,6 +88,11 @@ final class TVEmulationViewController: GCEventViewController {
         lowMemoryCancellable = TVEmulator.shared.$lowMemory
             .receive(on: DispatchQueue.main)
             .sink { [weak self] low in self?.lowMemoryLabel.isHidden = !low }
+
+        stopStuckCancellable = TVEmulator.shared.$stopStuck
+            .receive(on: DispatchQueue.main)
+            .filter { $0 }
+            .sink { [weak self] _ in self?.showStopStuck() }
 
         let metalLayer = metalView.metalLayer
         metalLayer.device = MTLCreateSystemDefaultDevice()

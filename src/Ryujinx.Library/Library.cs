@@ -1112,8 +1112,13 @@ namespace Ryujinx.Library
             _window.Initialize(_emulationContext, _inputConfiguration, _enableKeyboard, _enableMouse);
             _window.Execute();
 
+            // Shutdown steps are logged one by one: on tvOS a game quit sometimes
+            // never got to "emulation ended", and this shows where it stopped.
+            Logger.Info?.Print(LogClass.Application, "Shutdown: render loop ended, disposing the emulation context");
             _emulationContext.Dispose();
+            Logger.Info?.Print(LogClass.Application, "Shutdown: emulation context disposed, disposing the window");
             _window.Dispose();
+            Logger.Info?.Print(LogClass.Application, "Shutdown: window disposed");
 
             if (OperatingSystem.IsWindows())
             {

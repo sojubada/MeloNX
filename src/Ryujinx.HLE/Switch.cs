@@ -212,11 +212,16 @@ namespace Ryujinx.HLE
         {
             if (disposing)
             {
+                Logger.Info?.Print(LogClass.Application, "Shutdown: system (processes, services)");
                 System.Dispose();
+                Logger.Info?.Print(LogClass.Application, "Shutdown: audio");
                 AudioDeviceDriver.Dispose();
+                Logger.Info?.Print(LogClass.Application, "Shutdown: file system");
                 FileSystem.Dispose();
+                Logger.Info?.Print(LogClass.Application, "Shutdown: guest memory");
                 Memory.Dispose();
                 Debugger?.Dispose();
+                Logger.Info?.Print(LogClass.Application, "Shutdown: emulation context done");
 
                 TitleIDs.CurrentApplication.Value = null;
                 Shared = null;

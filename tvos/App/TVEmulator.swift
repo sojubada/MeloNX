@@ -62,6 +62,9 @@ final class TVEmulator: ObservableObject {
     /// Under ~300 MB left the game is close to being closed by tvOS: the game
     /// screen shows a "save now" hint (TVEmulationViewController).
     @Published private(set) var lowMemory = false
+    /// Set when a quit did not finish in time (the core's teardown can hang); the
+    /// emulation screen then offers to close the app instead of sitting on black.
+    @Published private(set) var stopStuck = false
     static let lowMemoryMB = 300
 
     var isRunning: Bool {
@@ -203,6 +206,7 @@ final class TVEmulator: ObservableObject {
                 self.memoryWatch = nil
                 self.lowMemory = false
                 self.threadActive = false
+                self.stopStuck = false
                 TVControllers.shared.detachAll()
                 UIApplication.shared.isIdleTimerDisabled = false
                 self.state = .finished(game, code: code)
@@ -219,6 +223,11 @@ final class TVEmulator: ObservableObject {
         guard isRunning else { return }
         TVLog.write("stop requested")
         Ryujinx.stopEmulation()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 15) { [weak self] in
+            guard let self, self.threadActive else { return }
+            TVLog.write("emulation did not end 15 s after stop")
+            self.stopStuck = true
+        }
     }
 
     func acknowledgeFinished() {
