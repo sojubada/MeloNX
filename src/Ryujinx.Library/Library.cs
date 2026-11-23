@@ -966,7 +966,27 @@ namespace Ryujinx.Library
                 _userChannelPersistence.ShouldRestart = false;
             }
 
-            _inputManager.Dispose();
+            // tvOS: every quit so far finished all of the shutdown above and then the
+            // app vanished before returning to Swift, with no crash report. Log each
+            // remaining step and keep a failure here from taking the app down.
+            Logger.Info?.Print(LogClass.Application, "Shutdown: disposing input");
+            try
+            {
+                _inputManager.Dispose();
+            }
+            catch (Exception e)
+            {
+                Logger.Error?.Print(LogClass.Application, $"Shutdown: input dispose failed: {e}");
+            }
+
+            if (OperatingSystem.IsTvOS())
+            {
+                // The forced aggressive GC + finalizer wait runs finalizers of objects
+                // whose native side (Vulkan device, guest memory) is already gone; the
+                // memory is reclaimed anyway by the next collection.
+                Logger.Info?.Print(LogClass.Application, "Shutdown: done (no forced GC on tvOS)");
+                return;
+            }
 
             GC.Collect(2, GCCollectionMode.Aggressive, blocking: true, compacting: true);
 
