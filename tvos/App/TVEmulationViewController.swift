@@ -158,7 +158,9 @@ final class TVEmulationViewController: GCEventViewController {
     // only ever opens the pause menu.
     override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
         if TVEmulator.shared.isRunning, presses.contains(where: { $0.type == .menu }) {
-            showPauseMenu()
+            // While quitting, Menu does nothing (pausing a system being torn down
+            // aborted the app).
+            if !TVEmulator.shared.stopRequested { showPauseMenu() }
             return
         }
         super.pressesBegan(presses, with: event)
@@ -205,7 +207,7 @@ final class TVEmulationViewController: GCEventViewController {
     func showPauseMenu() {
         // No alert can be shown while another one is up or the view is off screen;
         // flagging the menu as shown anyway would leave the game paused with no menu.
-        guard TVEmulator.shared.isRunning, !pauseMenuShown,
+        guard TVEmulator.shared.isRunning, !TVEmulator.shared.stopRequested, !pauseMenuShown,
               presentedViewController == nil, view.window != nil else { return }
         pauseMenuShown = true
         TVEmulator.shared.setPaused(true)

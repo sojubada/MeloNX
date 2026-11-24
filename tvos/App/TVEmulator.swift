@@ -65,6 +65,8 @@ final class TVEmulator: ObservableObject {
     /// Set when a quit did not finish in time (the core's teardown can hang); the
     /// emulation screen then offers to close the app instead of sitting on black.
     @Published private(set) var stopStuck = false
+    /// A quit is in progress: the core is tearing down, so no pause/resume calls.
+    private(set) var stopRequested = false
     static let lowMemoryMB = 300
 
     var isRunning: Bool {
@@ -207,6 +209,7 @@ final class TVEmulator: ObservableObject {
                 self.lowMemory = false
                 self.threadActive = false
                 self.stopStuck = false
+                self.stopRequested = false
                 TVControllers.shared.detachAll()
                 UIApplication.shared.isIdleTimerDisabled = false
                 self.state = .finished(game, code: code)
@@ -215,12 +218,13 @@ final class TVEmulator: ObservableObject {
     }
 
     func setPaused(_ paused: Bool) {
-        guard isRunning else { return }
+        guard isRunning, !stopRequested else { return }
         Ryujinx.togglePauseEmulation(paused)
     }
 
     func stop() {
         guard isRunning else { return }
+        stopRequested = true
         TVLog.write("stop requested")
         Ryujinx.stopEmulation()
         DispatchQueue.main.asyncAfter(deadline: .now() + 15) { [weak self] in

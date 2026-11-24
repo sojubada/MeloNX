@@ -199,9 +199,18 @@ namespace Ryujinx.Library
         [UnmanagedCallersOnly(EntryPoint = "toggle_pause_emulation")]
         public static void TogglePauseEmulation(bool shouldPause)
         {
-            if (_emulationContext != null && _emulationContext.System != null)
+            // Called from the UI thread; during a quit the system may already be
+            // disposed (Menu pressed while shutting down aborted the app).
+            try
             {
-                _emulationContext.System.TogglePauseEmulation(shouldPause);
+                if (_emulationContext != null && _emulationContext.System != null)
+                {
+                    _emulationContext.System.TogglePauseEmulation(shouldPause);
+                }
+            }
+            catch (Exception e)
+            {
+                Logger.Warning?.Print(LogClass.Application, $"TogglePauseEmulation ignored: {e.GetType().Name}: {e.Message}");
             }
         }
 
@@ -969,24 +978,20 @@ namespace Ryujinx.Library
             // tvOS: every quit so far finished all of the shutdown above and then the
             // app vanished before returning to Swift, with no crash report. Log each
             // remaining step and keep a failure here from taking the app down.
-            Logger.Info?.Print(LogClass.Application, "Shutdown: disposing input");
-            try
-            {
-                _inputManager.Dispose();
-            }
-            catch (Exception e)
-            {
-                Logger.Error?.Print(LogClass.Application, $"Shutdown: input dispose failed: {e}");
-            }
-
             if (OperatingSystem.IsTvOS())
             {
+                // The input manager is created once at app start and reused by every
+                // game, so it is not disposed here. Disposing it also hung every quit:
+                // SDL3Driver.Dispose joins its event thread, which waits for the render
+                // loop (already gone) to run its main-thread action.
                 // The forced aggressive GC + finalizer wait runs finalizers of objects
                 // whose native side (Vulkan device, guest memory) is already gone; the
                 // memory is reclaimed anyway by the next collection.
-                Logger.Info?.Print(LogClass.Application, "Shutdown: done (no forced GC on tvOS)");
+                Logger.Info?.Print(LogClass.Application, "Shutdown: done (input kept, no forced GC on tvOS)");
                 return;
             }
+
+            _inputManager.Dispose();
 
             GC.Collect(2, GCCollectionMode.Aggressive, blocking: true, compacting: true);
 
