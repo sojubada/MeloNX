@@ -15,7 +15,8 @@ namespace Ryujinx.Library
     
     public static class AlertHelper
     {
-        public static void ShowAlertWithTextInput(
+        /// <returns>false when no app handler took the request (the callback will never fire).</returns>
+        public static bool ShowAlertWithTextInput(
             string title,
             string message,
             string placeholder,
@@ -48,7 +49,10 @@ namespace Ryujinx.Library
             if (!CallbackRegistry.Invoke("show_text_input", bytes))
             {
                 CallbackRegistry.UnregisterManagedCallback(resultCallback);
+                return false;
             }
+
+            return true;
         }
 
         public static void ShowAlert(string title, string message, bool cancel)

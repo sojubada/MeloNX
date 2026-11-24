@@ -36,6 +36,8 @@ final class TVAppDelegate: UIResponder, UIApplicationDelegate {
         Ryujinx.initialize()
         TVLog.write("core initialized, firmware '\(Ryujinx.installedFirmwareVersion)', prod.keys \(TVPaths.hasProdKeys)")
 
+        TVTextInput.register()
+
         TVLog.write("step: audio, controllers, UI")
         Self.configureAudioSession()
         TVControllers.shared.start()

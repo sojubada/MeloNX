@@ -384,13 +384,22 @@ namespace Ryujinx.Library
                 string result = null;
                 using ManualResetEventSlim inputReceived = new(false);
 
-                AlertHelper.ShowAlertWithTextInput(args.HeaderText, args.SubtitleText, args.GuideText, inputText =>
+                bool shown = AlertHelper.ShowAlertWithTextInput(args.HeaderText, args.SubtitleText, args.GuideText, inputText =>
                 {
                     result = inputText;
                     inputReceived.Set();
                 });
 
-                inputReceived.Wait();
+                // No handler in the app: waiting here froze the game at its name screen.
+                if (shown)
+                {
+                    inputReceived.Wait();
+                }
+                else
+                {
+                    Ryujinx.Common.Logging.Logger.Warning?.Print(Ryujinx.Common.Logging.LogClass.Application, "Software keyboard: no text input handler, returning the default text");
+                }
+
                 userText = result;
             }
 
