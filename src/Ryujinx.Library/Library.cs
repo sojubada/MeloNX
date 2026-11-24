@@ -1145,6 +1145,13 @@ namespace Ryujinx.Library
             _window.Dispose();
             Logger.Info?.Print(LogClass.Application, "Shutdown: window disposed");
 
+            // Drop the disposed objects: the app detaches/reattaches pads right after
+            // a game ends, and NpadManager.ReloadConfiguration on the old window wrote
+            // into the old game's HID shared memory, already unmapped (the app died
+            // silently every time the library came back on tvOS).
+            _window = null;
+            _emulationContext = null;
+
             if (OperatingSystem.IsWindows())
             {
                 _windowsMultimediaTimerResolution?.Dispose();

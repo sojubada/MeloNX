@@ -195,7 +195,10 @@ namespace Ryujinx.Cpu.Jit.HostTracked
             }
             else
             {
-                throw new InvalidMemoryRegionException();
+                // Guest access far outside its address space (the page-table offset is
+                // past the end). Say where, so a crash log shows the guest address.
+                throw new InvalidMemoryRegionException(
+                    $"Attempted to access an invalid memory region (page table offset 0x{address:X}, guest VA ~0x{address * (PageSize / sizeof(ulong)):X}, {(write ? "write" : "read")}).");
             }
         }
 
