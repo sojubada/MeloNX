@@ -117,7 +117,11 @@ namespace Ryujinx.Graphics.Vulkan
                 {
                     int workerIndex = index;
 
-                    _threads[index] = new Thread(() => WorkerLoop(workerIndex, demandOnly: false))
+                    _threads[index] = new Thread(() =>
+                    {
+                        Ryujinx.Common.SystemInterop.HostThreadQos.Utility();
+                        WorkerLoop(workerIndex, demandOnly: false);
+                    })
                     {
                         IsBackground = true,
                         Name = $"Vulkan {name} Compile {index}",
@@ -126,7 +130,11 @@ namespace Ryujinx.Graphics.Vulkan
                 }
 
                 
-                _threads[workerCount] = new Thread(() => WorkerLoop(workerCount, demandOnly: true))
+                _threads[workerCount] = new Thread(() =>
+                {
+                    Ryujinx.Common.SystemInterop.HostThreadQos.UserInitiated();
+                    WorkerLoop(workerCount, demandOnly: true);
+                })
                 {
                     IsBackground = true,
                     Name = $"Vulkan {name} Demand Compile",

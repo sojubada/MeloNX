@@ -1287,6 +1287,7 @@ namespace Ryujinx.HLE.HOS.Kernel.Threading
 
         private void ThreadStart()
         {
+            Ryujinx.Common.SystemInterop.HostThreadQos.UserInteractive();
             _schedulerWaitEvent.Wait();
             DebugHalt.Reset();
             KernelStatic.SetKernelContext(KernelContext, this);

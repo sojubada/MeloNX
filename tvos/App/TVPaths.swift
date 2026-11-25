@@ -271,10 +271,17 @@ enum TVLog {
         }
     }
 
+    /// App log line: unified log + tvos-app.log. (No NSLog: it also went to
+    /// stdout.log and synchronises on every call.)
     static func write(_ message: String) {
-        NSLog("[MeloNX tvOS] %@", message)
-        let line = "\(formatter.string(from: Date())) \(message)\n"
+        DiagLog.info(.lifecycle, message)
+        file(message)
+    }
+
+    /// tvos-app.log only.
+    static func file(_ message: String) {
         guard tvLogFD >= 0 else { return }
+        let line = "\(formatter.string(from: Date())) \(message)\n"
         _ = line.withCString { Darwin.write(tvLogFD, $0, strlen($0)) }
     }
 }

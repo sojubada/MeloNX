@@ -56,6 +56,8 @@ final class TVEmulator: ObservableObject {
     }
 
     @Published private(set) var games: [GameInfo] = []
+    /// Files that look like games but cannot be loaded (shown in the library).
+    @Published private(set) var unsupportedGames: [String] = []
     @Published private(set) var state: State = .idle
     @Published private(set) var firmwareVersion: String = ""
     @Published private(set) var loading = false
@@ -89,12 +91,13 @@ final class TVEmulator: ObservableObject {
             // Every 30 s: a game killed by jetsam leaves no crash line, so the
             // last of these shows how close it was.
             let available = TVMemory.availableMB
-            if ticks % 30 == 0 {
+            if ticks % 60 == 0 {
                 // footprint = everything charged to the app; Metal = GPU share of it
                 TVLog.write("mem: available \(available) MB, footprint \(TVMemory.footprintMB) MB, Metal \(TVMemory.metalMB) MB; \(TVMemory.ledgerSummary)")
             }
             // What the footprint is made of: at 5 s (after loading), every 30 s, and when it gets low
-            if ticks == 5 || ticks % 30 == 15 || (available < Self.lowMemoryMB && !self.lowMemory) {
+            // The full memory map walk (thousands of regions) only when memory runs low
+            if available < Self.lowMemoryMB && !self.lowMemory {
                 DispatchQueue.global(qos: .utility).async { TVLog.write(TVMemory.regionSummary()) }
             }
             // tvOS sends no system memory-pressure event while we are under our own
@@ -126,8 +129,10 @@ final class TVEmulator: ObservableObject {
 
         DispatchQueue.global(qos: .userInitiated).async {
             let found = Self.scan()
+            let unsupported = Self.scanUnsupported()
             DispatchQueue.main.async {
                 self.games = found
+                self.unsupportedGames = unsupported
                 self.loading = false
             }
         }
@@ -135,6 +140,34 @@ final class TVEmulator: ObservableObject {
 
     /// Game files in roms/ (or anywhere else in the input folders). Only container formats:
     /// loose .nca files also exist inside the emulator's own bis/ folder.
+    /// Game files the core cannot open, so they do not just silently go missing:
+    /// compressed dumps (.nsz/.xcz) and split dumps (a folder named *.nsp/*.xci
+    /// holding 00, 01, ... parts, as made for FAT32 cards).
+    private static func scanUnsupported() -> [String] {
+        let compressed: Set<String> = ["nsz", "xcz"]
+        var result: [String] = []
+        for dir in TVPaths.inputDirs {
+            guard let e = FileManager.default.enumerator(at: dir, includingPropertiesForKeys: [.isDirectoryKey],
+                                                         options: [.skipsHiddenFiles]) else { continue }
+            for case let url as URL in e {
+                let ext = url.pathExtension.lowercased()
+                let isDir = (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
+                if isDir {
+                    if ["nsp", "xci"].contains(ext) {
+                        result.append("\(url.lastPathComponent) — 분할 덤프 폴더(00, 01…): 하나의 파일로 합쳐야 합니다")
+                        e.skipDescendants()
+                    } else if ["bis", "sdcard", "system", "Logs", "swap", "games", "mods"].contains(url.lastPathComponent) {
+                        e.skipDescendants()
+                    }
+                } else if compressed.contains(ext) {
+                    result.append("\(url.lastPathComponent) — 압축 형식(.\(ext)): .\(ext == "nsz" ? "nsp" : "xci")로 풀어야 합니다")
+                }
+            }
+        }
+        if !result.isEmpty { DiagLog.warn(.storage, "unsupported game files", detail: result.joined(separator: "; ")) }
+        return result
+    }
+
     private static func scan() -> [GameInfo] {
         let exts: Set<String> = ["nsp", "xci", "nro"]
         let files = TVPaths.find(in: TVPaths.inputDirs) { exts.contains($0.pathExtension.lowercased()) }
@@ -200,6 +233,8 @@ final class TVEmulator: ObservableObject {
 
         Thread.detachNewThread {
             Thread.current.name = "MeloNX emulation"
+            // Highest QoS so the emulator gets the A15's performance cores first
+            pthread_set_qos_class_self_np(QOS_CLASS_USER_INTERACTIVE, 0)
             let code = Ryujinx.mainRyu(options)
             TVLog.write("emulation ended with code \(code)")
 

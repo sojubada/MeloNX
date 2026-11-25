@@ -126,5 +126,8 @@ final class TVSettings: ObservableObject {
 
         o.loggingEnableError = true
         o.loggingEnableDebug = v.debugLogs
+        // Stub and guest logs write every frame in some games; only with debug logs on
+        o.loggingDisableStub = !v.debugLogs
+        o.loggingDisableGuest = !v.debugLogs
     }
 }

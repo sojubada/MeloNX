@@ -51,6 +51,14 @@ struct TVLibraryView: View {
                         }
                     }
                 }
+                if !emulator.unsupportedGames.isEmpty {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("열 수 없는 게임 파일").font(.headline)
+                        ForEach(emulator.unsupportedGames, id: \.self) { Text($0) }
+                    }
+                    .font(.callout)
+                    .foregroundColor(.secondary)
+                }
             }
             .padding(.horizontal, 90)
             .padding(.vertical, 60)

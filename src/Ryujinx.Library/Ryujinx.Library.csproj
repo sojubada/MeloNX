@@ -21,7 +21,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <RuntimeHostConfigurationOption Include="System.GC.ConserveMemory" Value="9" />
+    <!-- iOS keeps guest RAM in donor processes and needs the app heap tight. On tvOS
+         guest RAM is in swap files and the .NET heap is ~200 MB, so the extra
+         compacting collections (GC pauses = frame hitches) are not worth it. -->
+    <RuntimeHostConfigurationOption Include="System.GC.ConserveMemory" Value="9" Condition=" '$(RuntimeIdentifier)' != 'tvos-arm64' " />
   </ItemGroup>
 
   <ItemGroup>

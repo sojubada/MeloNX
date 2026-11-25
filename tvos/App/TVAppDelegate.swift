@@ -111,6 +111,9 @@ final class TVAppDelegate: UIResponder, UIApplicationDelegate {
             // Keep the MSL source MoltenVK holds for every shader LZFSE-compressed
             // (several times smaller); it otherwise piles up in malloc on a 4 GB box.
             ("MVK_CONFIG_SHADER_COMPRESSION_ALGORITHM", "1"),
+            // MoltenVK errors only: its warnings ("primitive restart", one per
+            // pipeline) were written synchronously to stdout.log while compiling.
+            ("MVK_CONFIG_LOG_LEVEL", TVSettings.shared.values.debugLogs ? "2" : "1"),
             ("HAS_TXM", "0"),
             ("DUAL_MAPPED_JIT", "0"),
         ]
