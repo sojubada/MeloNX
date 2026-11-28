@@ -287,7 +287,15 @@ namespace Ryujinx.Graphics.Gpu.Memory
 
                 size = Math.Min(data.Length, (int)PageSize - (int)(va & PageMask));
 
-                physicalMemory.GetSpan(pa, size, tracked).CopyTo(data[..size]);
+                // Unmapped GPU page (e.g. DMA from a freed buffer): read zeros instead of aborting.
+                if (pa == PteUnmapped)
+                {
+                    data[..size].Clear();
+                }
+                else
+                {
+                    physicalMemory.GetSpan(pa, size, tracked).CopyTo(data[..size]);
+                }
 
                 offset += size;
             }
@@ -298,7 +306,14 @@ namespace Ryujinx.Graphics.Gpu.Memory
 
                 size = Math.Min(data.Length - offset, (int)PageSize);
 
-                physicalMemory.GetSpan(pa, size, tracked).CopyTo(data.Slice(offset, size));
+                if (pa == PteUnmapped)
+                {
+                    data.Slice(offset, size).Clear();
+                }
+                else
+                {
+                    physicalMemory.GetSpan(pa, size, tracked).CopyTo(data.Slice(offset, size));
+                }
             }
         }
 
@@ -392,7 +407,10 @@ namespace Ryujinx.Graphics.Gpu.Memory
 
                     size = Math.Min(data.Length, (int)PageSize - (int)(va & PageMask));
 
-                    writeCallback(physicalMemory, pa, data[..size]);
+                    if (pa != PteUnmapped)
+                    {
+                        writeCallback(physicalMemory, pa, data[..size]);
+                    }
 
                     offset += size;
                 }
@@ -403,7 +421,10 @@ namespace Ryujinx.Graphics.Gpu.Memory
 
                     size = Math.Min(data.Length - offset, (int)PageSize);
 
-                    writeCallback(physicalMemory, pa, data.Slice(offset, size));
+                    if (pa != PteUnmapped)
+                    {
+                        writeCallback(physicalMemory, pa, data.Slice(offset, size));
+                    }
                 }
             }
         }

@@ -77,6 +77,7 @@ final class TVEmulator: ObservableObject {
     }
 
     private var threadActive = false
+    private var sessionID = 0
     private var memoryWatch: DispatchSourceTimer?
 
     /// RunningBoard may lower the limit again while the game runs; put it back.
@@ -228,6 +229,7 @@ final class TVEmulator: ObservableObject {
         TVLog.write("start \(game.titleName) [\(game.titleId)] \(game.fileURL.lastPathComponent); pads: \(TVControllers.shared.summary); available \(TVMemory.availableMB) MB")
 
         threadActive = true
+        sessionID += 1
         state = .running(game)
         UIApplication.shared.isIdleTimerDisabled = true
 
@@ -262,8 +264,9 @@ final class TVEmulator: ObservableObject {
         stopRequested = true
         TVLog.write("stop requested")
         Ryujinx.stopEmulation()
+        let session = sessionID
         DispatchQueue.main.asyncAfter(deadline: .now() + 15) { [weak self] in
-            guard let self, self.threadActive else { return }
+            guard let self, self.threadActive, self.sessionID == session else { return }
             TVLog.write("emulation did not end 15 s after stop")
             self.stopStuck = true
         }

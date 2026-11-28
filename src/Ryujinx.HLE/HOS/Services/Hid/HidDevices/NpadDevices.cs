@@ -30,6 +30,11 @@ namespace Ryujinx.HLE.HOS.Services.Hid
         };
 
         internal NpadJoyHoldType JoyHold { get; set; }
+
+        // When the game supports none of the configured controller types (e.g. Pokemon Let's Go:
+        // Handheld/JoyconLeft/JoyconRight only), Player1's pad is presented as a supported type.
+        private PlayerIndex _player1Redirect = PlayerIndex.Player1;
+        private ControllerType _lastFallback = ControllerType.None;
         internal bool SixAxisActive = false; // TODO: link to hidserver when implemented
         internal ControllerType SupportedStyleSets { get; set; }
 
@@ -162,6 +167,11 @@ namespace Ryujinx.HLE.HOS.Services.Hid
             {
                 GamepadInput state = states[i];
 
+                if (state.PlayerId == PlayerIndex.Player1)
+                {
+                    state.PlayerId = _player1Redirect;
+                }
+
                 updated[(int)state.PlayerId] = true;
 
                 UpdateInput(state);
@@ -179,6 +189,8 @@ namespace Ryujinx.HLE.HOS.Services.Hid
         private void Remap()
         {
             // Remap/Init if necessary
+            Span<ControllerType> configs = stackalloc ControllerType[MaxControllers];
+
             for (int i = 0; i < MaxControllers; ++i)
             {
                 ControllerType config = _configuredTypes[i];
@@ -205,7 +217,53 @@ namespace Ryujinx.HLE.HOS.Services.Hid
                     config = ControllerType.None;
                 }
 
-                SetupNpad((PlayerIndex)i, config);
+                configs[i] = config;
+            }
+
+            PlayerIndex redirect = PlayerIndex.Player1;
+            ControllerType fallback = ControllerType.None;
+            bool anyActive = false;
+
+            for (int i = 0; i < MaxControllers; ++i)
+            {
+                anyActive |= configs[i] != ControllerType.None;
+            }
+
+            ControllerType p1 = _configuredTypes[(int)PlayerIndex.Player1];
+
+            if (!anyActive && (p1 == ControllerType.ProController || p1 == ControllerType.JoyconPair))
+            {
+                int hh = (int)PlayerIndex.Handheld;
+
+                if (!_device.System.State.DockedMode && (SupportedStyleSets & ControllerType.Handheld) != 0 && _supportedPlayers[hh])
+                {
+                    configs[hh] = fallback = ControllerType.Handheld;
+                    redirect = PlayerIndex.Handheld;
+                }
+                else if (_supportedPlayers[0] && (SupportedStyleSets & ControllerType.JoyconRight) != 0)
+                {
+                    configs[0] = fallback = ControllerType.JoyconRight;
+                }
+                else if (_supportedPlayers[0] && (SupportedStyleSets & ControllerType.JoyconLeft) != 0)
+                {
+                    configs[0] = fallback = ControllerType.JoyconLeft;
+                }
+            }
+
+            _player1Redirect = redirect;
+
+            if (fallback != _lastFallback)
+            {
+                _lastFallback = fallback;
+                if (fallback != ControllerType.None)
+                {
+                    Logger.Info?.Print(LogClass.Hid, $"Controller fallback: Player1 pad presented as {fallback} (game supports '{SupportedStyleSets}')");
+                }
+            }
+
+            for (int i = 0; i < MaxControllers; ++i)
+            {
+                SetupNpad((PlayerIndex)i, configs[i]);
             }
 
             if (_activeCount == 0 && PerformanceCounter.ElapsedMilliseconds > _lastNotifyTimestamp + NoMatchNotifyFrequencyMs)
@@ -439,6 +497,8 @@ namespace Ryujinx.HLE.HOS.Services.Hid
             UpdateUnusedInputIfNotEqual(ref lifo, ref currentNpad.Palma);
         }
 
+        private PlayerIndex RedirectPlayer(PlayerIndex index) => index == PlayerIndex.Player1 ? _player1Redirect : index;
+
         private void UpdateDisconnectedInput(PlayerIndex index)
         {
             ref NpadInternalState currentNpad = ref _device.Hid.SharedMemory.Npads[(int)index].InternalState;
@@ -459,7 +519,7 @@ namespace Ryujinx.HLE.HOS.Services.Hid
 
             for (int i = 0; i < states.Count; ++i)
             {
-                updated[(int)states[i].PlayerId] = true;
+                updated[(int)RedirectPlayer(states[i].PlayerId)] = true;
 
                 if (SetSixAxisState(states[i]))
                 {
@@ -516,7 +576,7 @@ namespace Ryujinx.HLE.HOS.Services.Hid
                 return false;
             }
 
-            ref NpadInternalState currentNpad = ref _device.Hid.SharedMemory.Npads[(int)state.PlayerId].InternalState;
+            ref NpadInternalState currentNpad = ref _device.Hid.SharedMemory.Npads[(int)RedirectPlayer(state.PlayerId)].InternalState;
 
             if (currentNpad.StyleSet == NpadStyleTag.None)
             {
@@ -657,6 +717,8 @@ namespace Ryujinx.HLE.HOS.Services.Hid
 
         public ConcurrentQueue<(VibrationValue, VibrationValue)> GetRumbleQueue(PlayerIndex index)
         {
+            index = RedirectPlayer(index);
+
             if (!RumbleQueues.TryGetValue(index, out ConcurrentQueue<(VibrationValue, VibrationValue)> rumbleQueue))
             {
                 rumbleQueue = new ConcurrentQueue<(VibrationValue, VibrationValue)>();
